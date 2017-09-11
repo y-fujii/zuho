@@ -44,35 +44,23 @@ class Renderer {
 	constructor( elem ) {
 		let gl = this.gl = elem.getContext( "webgl" );
 
-		// shader program.
-		function compile( src, type ) {
-			let shader = gl.createShader( type );
-			gl.shaderSource( shader, src );
-			gl.compileShader( shader );
-			let log = gl.getShaderInfoLog( shader );
-			if( log.length > 0 ) {
-				console.log( log );
-			}
-			return shader;
-		}
-		let vert = compile( this.vertShader, gl.VERTEX_SHADER );
-		let frag = compile( this.fragShader, gl.FRAGMENT_SHADER );
-		this.prog = gl.createProgram();
-		gl.attachShader( this.prog, vert );
-		gl.attachShader( this.prog, frag );
-		gl.linkProgram( this.prog );
-		let log = gl.getProgramInfoLog( this.prog );
-		if( log.length > 0 ) {
-			console.log( log );
-		}
-		this.setCamera( Matrix.identity( 3 ), this.Mode.perspective, 2.0 );
+		this.vertShader     = gl.createShader( gl.VERTEX_SHADER );
+		this.fragShaderFast = gl.createShader( gl.FRAGMENT_SHADER );
+		this.fragShaderSlow = gl.createShader( gl.FRAGMENT_SHADER );
+		this.progFast       = gl.createProgram();
+		this.progSlow       = gl.createProgram();
+		this._compile( this.vertShader, this.vertSource );
+		gl.attachShader( this.progFast, this.vertShader );
+		gl.attachShader( this.progFast, this.fragShaderFast );
+		gl.attachShader( this.progSlow, this.vertShader );
+		gl.attachShader( this.progSlow, this.fragShaderSlow );
+		this.setMapping( Mapping.stereographic );
+		this.setCamera( Matrix.identity( 3 ), 2.0 );
 
-		// vertex buffer.
 		this.vbo = gl.createBuffer();
 		gl.bindBuffer( gl.ARRAY_BUFFER, this.vbo );
 		gl.bufferData( gl.ARRAY_BUFFER, this.vertices, gl.STATIC_DRAW ); 
 
-		// texture.
 		this.tex = gl.createTexture();
 		gl.bindTexture( gl.TEXTURE_2D, this.tex );
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
@@ -80,7 +68,6 @@ class Renderer {
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE );
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE );
 
-		// unbind.
 		gl.bindTexture( gl.TEXTURE_2D, null );
 		gl.bindBuffer( gl.ARRAY_BUFFER, null );
 	}
@@ -92,21 +79,28 @@ class Renderer {
 		gl.bindTexture( gl.TEXTURE_2D, null );
 	}
 
-	setCamera( rot, mode, scale ) {
-		let gl = this.gl;
-		let f = scale / Math.sqrt( gl.drawingBufferWidth * gl.drawingBufferHeight );
-		let sx = f * gl.drawingBufferWidth;
-		let sy = f * gl.drawingBufferHeight;
-		gl.useProgram( this.prog );
-		gl.uniformMatrix3fv( gl.getUniformLocation( this.prog, "uRot"   ), false, rot    );
-		gl.uniform1f       ( gl.getUniformLocation( this.prog, "uMode"  ),        mode   );
-		gl.uniform2f       ( gl.getUniformLocation( this.prog, "uScale" ),        sx, sy );
-		gl.useProgram( null );
+	setMapping( code ) {
+		this._compile( this.fragShaderFast, this.fragSourceCommon + this.fragSourceFast + code );
+		this._compile( this.fragShaderSlow, this.fragSourceCommon + this.fragSourceSlow + code );
+		this._link( this.progFast );
+		this._link( this.progSlow );
 	}
 
-	render() {
+	setCamera( rot, scale ) {
+		this.rotation = rot;
+		this.scale    = scale;
+	}
+
+	render( fast ) {
 		let gl = this.gl;
-		gl.useProgram( this.prog );
+		let prog = fast ? this.progFast : this.progSlow;
+		gl.useProgram( prog );
+		let f = this.scale / Math.sqrt( gl.drawingBufferWidth * gl.drawingBufferHeight );
+		let sx = f * gl.drawingBufferWidth;
+		let sy = f * gl.drawingBufferHeight;
+		gl.uniformMatrix3fv( gl.getUniformLocation( prog, "uRot"    ), false, this.rotation );
+		gl.uniform2f       ( gl.getUniformLocation( prog, "uScale"  ),        sx, sy        );
+		gl.uniform1f       ( gl.getUniformLocation( prog, "uPxSize" ),        2.0 * f       );
 
 		gl.enableVertexAttribArray( 0 );
 		gl.bindBuffer( gl.ARRAY_BUFFER, this.vbo );
@@ -114,7 +108,7 @@ class Renderer {
 
 		gl.activeTexture( gl.TEXTURE0 );
 		gl.bindTexture( gl.TEXTURE_2D, this.tex );
-		gl.uniform1i( gl.getUniformLocation( this.prog, "uTex" ), 0 );
+		gl.uniform1i( gl.getUniformLocation( prog, "uTex" ), 0 );
 
 		gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
 
@@ -122,32 +116,86 @@ class Renderer {
 		gl.bindBuffer( gl.ARRAY_BUFFER, null );
 		gl.useProgram( null );
 	}
+
+	_compile( shader, src ) {
+		let gl = this.gl;
+		gl.shaderSource( shader, src );
+		gl.compileShader( shader );
+		let log = gl.getShaderInfoLog( shader );
+		if( log.length > 0 ) {
+			console.log( log );
+		}
+	}
+
+	_link( prog ) {
+		let gl = this.gl;
+		gl.linkProgram( prog );
+		let log = gl.getProgramInfoLog( prog );
+		if( log.length > 0 ) {
+			console.log( log );
+		}
+	}
 }
 
 Renderer.prototype.vertices = new Float32Array( [
 	-1.0, -1.0, +1.0, -1.0, -1.0, +1.0, +1.0, +1.0,
 ] );
 
-Renderer.prototype.fragShader = String.raw`
-	precision highp float;
+Renderer.prototype.fragSourceCommon = String.raw`
+	precision mediump float;
 	const   float     pi = 3.14159265359;
-	uniform sampler2D uTex;
+	uniform float     uPxSize;
 	uniform mat3      uRot;
-	uniform float     uMode;
+	uniform sampler2D uTex;
 	varying vec2      vPos;
 
-	void main() {
-		//vec3 pos = vec3( vPos, 1.0 );
-		//vec3 pos = vec3( vPos, sqrt( 1.0 - dot( vPos, vPos ) ) );
-		vec3 pos = vec3( vPos, 1.0 - 0.25 * dot( vPos, vPos ) );
-		vec3 dir = normalize( uRot * pos );
+	vec3 unproject( vec2 );
+
+	vec4 sample( float dx, float dy ) {
+		vec2 pos = vPos + uPxSize * vec2( dx, dy );
+		vec3 dir = normalize( uRot * unproject( pos ) );
 		float u = (0.5 / pi) * atan( dir[1], dir[0] ) + 0.5;
 		float v = (1.0 / pi) * acos( dir[2] );
-		gl_FragColor = texture2D( uTex, vec2( u, v ) );
+		return texture2D( uTex, vec2( u, v ) );
 	}
 `;
 
-Renderer.prototype.vertShader = String.raw`
+Renderer.prototype.fragSourceFast = String.raw`
+	void main() {
+		gl_FragColor = sample( 0.0, 0.0 );
+	}
+`;
+
+Renderer.prototype.fragSourceSlow = String.raw`
+	vec4 sampleSq( float dx, float dy ) {
+		vec4 s = sample( dx, dy );
+		return s * s;
+	}
+
+	void main() {
+		// (2, 3) halton vector sequences.
+		vec4 acc =
+			(((sampleSq(  1.0 /  2.0 - 0.5,  1.0 /  3.0 - 0.5 ) +
+			   sampleSq(  1.0 /  4.0 - 0.5,  2.0 /  3.0 - 0.5 )) +
+			  (sampleSq(  3.0 /  4.0 - 0.5,  1.0 /  9.0 - 0.5 ) +
+			   sampleSq(  1.0 /  8.0 - 0.5,  4.0 /  9.0 - 0.5 ))) +
+			 ((sampleSq(  5.0 /  8.0 - 0.5,  7.0 /  9.0 - 0.5 ) +
+			   sampleSq(  3.0 /  8.0 - 0.5,  2.0 /  9.0 - 0.5 )) +
+			  (sampleSq(  7.0 /  8.0 - 0.5,  5.0 /  9.0 - 0.5 ) +
+			   sampleSq(  1.0 / 16.0 - 0.5,  8.0 /  9.0 - 0.5 )))) +
+			(((sampleSq(  9.0 / 16.0 - 0.5,  1.0 / 27.0 - 0.5 ) +
+			   sampleSq(  5.0 / 16.0 - 0.5, 10.0 / 27.0 - 0.5 )) +
+			  (sampleSq( 13.0 / 16.0 - 0.5, 19.0 / 27.0 - 0.5 ) +
+			   sampleSq(  3.0 / 16.0 - 0.5,  4.0 / 27.0 - 0.5 ))) +
+			 ((sampleSq( 11.0 / 16.0 - 0.5, 13.0 / 27.0 - 0.5 ) +
+			   sampleSq(  7.0 / 16.0 - 0.5, 22.0 / 27.0 - 0.5 )) +
+			  (sampleSq( 15.0 / 16.0 - 0.5,  7.0 / 27.0 - 0.5 ) +
+			   sampleSq(  1.0 / 32.0 - 0.5, 16.0 / 27.0 - 0.5 ))));
+		gl_FragColor = sqrt( (1.0 / 16.0) * acc );
+	}
+`;
+
+Renderer.prototype.vertSource = String.raw`
 	uniform   vec2 uScale;
 	attribute vec2 aPos;
 	varying   vec2 vPos;
@@ -158,10 +206,17 @@ Renderer.prototype.vertShader = String.raw`
 	}
 `;
 
-Renderer.prototype.Mode = {
-	perspective: 0,
-	cylindrical: 1,
-	stereo:      2,
+let Mapping = {
+	stereographic: String.raw`
+		vec3 unproject( vec2 p ) {
+			return vec3( p, 1.0 - 0.25 * dot( p, p ) );
+		}
+	`,
+	perspective: String.raw`
+		vec3 unproject( vec2 p ) {
+			return vec3( p, 1.0 );
+		}
+	`,
 };
 
 class Handler {
@@ -172,19 +227,25 @@ class Handler {
 		this.theta    = Math.PI / -2.0;
 		this.phi      = 0.0;
 		this.logScale = 0.0;
+		this.mapping  = 0;
 		elem.addEventListener( "mousedown", this.onMouseDown.bind( this ) );
 		elem.addEventListener( "mouseup",   this.onMouseUp  .bind( this ) );
 		elem.addEventListener( "mousemove", this.onMouseMove.bind( this ) );
-		this.update();
+		elem.addEventListener( "dblclick",  this.onDblClick .bind( this ) );
+		this.update( false );
 	}
 
 	onMouseDown( ev ) {
+		if( ev.button != 0 ) {
+			return;
+		}
 		this.mousePos = [ ev.clientX, ev.clientY ];
 		ev.target.setCapture();
 	}
 
 	onMouseUp( ev ) {
 		this.mousePos = null;
+		this.update( false );
 	}
 
 	onMouseMove( ev ) {
@@ -206,17 +267,24 @@ class Handler {
 		}
 		this.mousePos = [ ev.clientX, ev.clientY ];
 
-		this.update();
+		this.update( true );
 	}
 
-	update() {
+	onDblClick( ev ) {
+		let maps = Object.values( Mapping );
+		this.mapping = (this.mapping + 1) % maps.length;
+		this.renderer.setMapping( maps[this.mapping] );
+		this.update( false );
+	}
+
+	update( fast ) {
 		let rot = Matrix.mul( 3,
 			Matrix.rotation( 3, 1, 2, this.theta ),
 			Matrix.rotation( 3, 0, 1, this.phi   )
 		);
 		let scale = Math.exp( this.logScale );
-		this.renderer.setCamera( rot, this.renderer.Mode.perspective, scale );
-		this.renderer.render();
+		this.renderer.setCamera( rot, scale );
+		this.renderer.render( fast );
 	}
 }
 
