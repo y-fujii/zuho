@@ -42,27 +42,27 @@ class Matrix {
 
 class Renderer {
 	constructor( elem ) {
-		let gl = this.gl = elem.getContext( "webgl" );
+		let gl = this._gl = elem.getContext( "webgl" );
 
-		this.vertShader     = gl.createShader( gl.VERTEX_SHADER );
-		this.fragShaderFast = gl.createShader( gl.FRAGMENT_SHADER );
-		this.fragShaderSlow = gl.createShader( gl.FRAGMENT_SHADER );
-		this.progFast       = gl.createProgram();
-		this.progSlow       = gl.createProgram();
-		this._compile( this.vertShader, this.vertSource );
-		gl.attachShader( this.progFast, this.vertShader );
-		gl.attachShader( this.progFast, this.fragShaderFast );
-		gl.attachShader( this.progSlow, this.vertShader );
-		gl.attachShader( this.progSlow, this.fragShaderSlow );
+		this._vertShader     = gl.createShader( gl.VERTEX_SHADER );
+		this._fragShaderFast = gl.createShader( gl.FRAGMENT_SHADER );
+		this._fragShaderSlow = gl.createShader( gl.FRAGMENT_SHADER );
+		this._progFast       = gl.createProgram();
+		this._progSlow       = gl.createProgram();
+		this._compile( this._vertShader, Renderer._vertSource );
+		gl.attachShader( this._progFast, this._vertShader );
+		gl.attachShader( this._progFast, this._fragShaderFast );
+		gl.attachShader( this._progSlow, this._vertShader );
+		gl.attachShader( this._progSlow, this._fragShaderSlow );
 		this.setMapping( Object.values( Mapping )[0] );
 		this.setCamera( Matrix.identity( 3 ), 2.0 );
 
-		this.vbo = gl.createBuffer();
-		gl.bindBuffer( gl.ARRAY_BUFFER, this.vbo );
-		gl.bufferData( gl.ARRAY_BUFFER, this.vertices, gl.STATIC_DRAW ); 
+		this._vbo = gl.createBuffer();
+		gl.bindBuffer( gl.ARRAY_BUFFER, this._vbo );
+		gl.bufferData( gl.ARRAY_BUFFER, Renderer._vertices, gl.STATIC_DRAW );
 
-		this.tex = gl.createTexture();
-		gl.bindTexture( gl.TEXTURE_2D, this.tex );
+		this._tex = gl.createTexture();
+		gl.bindTexture( gl.TEXTURE_2D, this._tex );
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST );
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE );
@@ -73,41 +73,41 @@ class Renderer {
 	}
 
 	setImage( img ) {
-		let gl = this.gl;
-		gl.bindTexture( gl.TEXTURE_2D, this.tex );
+		let gl = this._gl;
+		gl.bindTexture( gl.TEXTURE_2D, this._tex );
 		gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img );
 		gl.bindTexture( gl.TEXTURE_2D, null );
 	}
 
 	setMapping( code ) {
-		this._compile( this.fragShaderFast, this.fragSourceCommon + this.fragSourceFast + code );
-		this._compile( this.fragShaderSlow, this.fragSourceCommon + this.fragSourceSlow + code );
-		this._link( this.progFast );
-		this._link( this.progSlow );
+		this._compile( this._fragShaderFast, Renderer._fragSourceCommon + Renderer._fragSourceFast + code );
+		this._compile( this._fragShaderSlow, Renderer._fragSourceCommon + Renderer._fragSourceSlow + code );
+		this._link( this._progFast );
+		this._link( this._progSlow );
 	}
 
 	setCamera( rot, scale ) {
-		this.rotation = rot;
-		this.scale    = scale;
+		this._rotation = rot;
+		this._scale    = scale;
 	}
 
 	render( fast ) {
-		let gl = this.gl;
-		let prog = fast ? this.progFast : this.progSlow;
+		let gl = this._gl;
+		let prog = fast ? this._progFast : this._progSlow;
 		gl.useProgram( prog );
-		let f = this.scale / Math.sqrt( gl.drawingBufferWidth * gl.drawingBufferHeight );
+		let f = this._scale / Math.sqrt( gl.drawingBufferWidth * gl.drawingBufferHeight );
 		let sx = f * gl.drawingBufferWidth;
 		let sy = f * gl.drawingBufferHeight;
-		gl.uniformMatrix3fv( gl.getUniformLocation( prog, "uRot"    ), false, this.rotation );
-		gl.uniform2f       ( gl.getUniformLocation( prog, "uScale"  ),        sx, sy        );
-		gl.uniform1f       ( gl.getUniformLocation( prog, "uPxSize" ),        2.0 * f       );
+		gl.uniformMatrix3fv( gl.getUniformLocation( prog, "uRot"    ), false, this._rotation );
+		gl.uniform2f       ( gl.getUniformLocation( prog, "uScale"  ),        sx, sy         );
+		gl.uniform1f       ( gl.getUniformLocation( prog, "uPxSize" ),        2.0 * f        );
 
 		gl.enableVertexAttribArray( 0 );
-		gl.bindBuffer( gl.ARRAY_BUFFER, this.vbo );
+		gl.bindBuffer( gl.ARRAY_BUFFER, this._vbo );
 		gl.vertexAttribPointer( 0, 2, gl.FLOAT, false, 0, 0 );
 
 		gl.activeTexture( gl.TEXTURE0 );
-		gl.bindTexture( gl.TEXTURE_2D, this.tex );
+		gl.bindTexture( gl.TEXTURE_2D, this._tex );
 		gl.uniform1i( gl.getUniformLocation( prog, "uTex" ), 0 );
 
 		gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
@@ -118,7 +118,7 @@ class Renderer {
 	}
 
 	_compile( shader, src ) {
-		let gl = this.gl;
+		let gl = this._gl;
 		gl.shaderSource( shader, src );
 		gl.compileShader( shader );
 		let log = gl.getShaderInfoLog( shader );
@@ -128,7 +128,7 @@ class Renderer {
 	}
 
 	_link( prog ) {
-		let gl = this.gl;
+		let gl = this._gl;
 		gl.linkProgram( prog );
 		let log = gl.getProgramInfoLog( prog );
 		if( log.length > 0 ) {
@@ -137,11 +137,11 @@ class Renderer {
 	}
 }
 
-Renderer.prototype.vertices = new Float32Array( [
+Renderer._vertices = new Float32Array( [
 	-1.0, -1.0, +1.0, -1.0, -1.0, +1.0, +1.0, +1.0,
 ] );
 
-Renderer.prototype.fragSourceCommon = String.raw`
+Renderer._fragSourceCommon = String.raw`
 	precision mediump float;
 	const   float     pi = 3.14159265359;
 	uniform float     uPxSize;
@@ -160,13 +160,13 @@ Renderer.prototype.fragSourceCommon = String.raw`
 	}
 `;
 
-Renderer.prototype.fragSourceFast = String.raw`
+Renderer._fragSourceFast = String.raw`
 	void main() {
 		gl_FragColor = sample( 0.0, 0.0 );
 	}
 `;
 
-Renderer.prototype.fragSourceSlow = String.raw`
+Renderer._fragSourceSlow = String.raw`
 	vec4 sampleSq( float dx, float dy ) {
 		vec4 s = sample( dx, dy );
 		return s * s;
@@ -195,7 +195,7 @@ Renderer.prototype.fragSourceSlow = String.raw`
 	}
 `;
 
-Renderer.prototype.vertSource = String.raw`
+Renderer._vertSource = String.raw`
 	uniform   vec2 uScale;
 	attribute vec2 aPos;
 	varying   vec2 vPos;
@@ -280,70 +280,70 @@ let Mapping = {
 
 class Handler {
 	constructor( elem, renderer ) {
-		this.element  = elem;
-		this.renderer = renderer;
-		this.mousePos = null;
-		this.theta    = Math.PI / -2.0;
-		this.phi      = 0.0;
-		this.logScale = 0.0;
-		this.mapping  = 0;
-		elem.addEventListener( "mousedown", this.onMouseDown.bind( this ) );
-		elem.addEventListener( "mouseup",   this.onMouseUp  .bind( this ) );
-		elem.addEventListener( "mousemove", this.onMouseMove.bind( this ) );
-		elem.addEventListener( "dblclick",  this.onDblClick .bind( this ) );
+		this._element  = elem;
+		this._renderer = renderer;
+		this._mousePos = null;
+		this._theta    = Math.PI / -2.0;
+		this._phi      = 0.0;
+		this._logScale = 0.0;
+		this._mapping  = 0;
+		elem.addEventListener( "mousedown", this._onMouseDown.bind( this ) );
+		elem.addEventListener( "mouseup",   this._onMouseUp  .bind( this ) );
+		elem.addEventListener( "mousemove", this._onMouseMove.bind( this ) );
+		elem.addEventListener( "dblclick",  this._onDblClick .bind( this ) );
 		this.update( false );
 	}
 
-	onMouseDown( ev ) {
+	_onMouseDown( ev ) {
 		if( ev.button != 0 ) {
 			return;
 		}
-		this.mousePos = [ ev.clientX, ev.clientY ];
+		this._mousePos = [ ev.clientX, ev.clientY ];
 		ev.target.setCapture();
 	}
 
-	onMouseUp( ev ) {
-		this.mousePos = null;
+	_onMouseUp( ev ) {
+		this._mousePos = null;
 		this.update( false );
 	}
 
-	onMouseMove( ev ) {
-		if( this.mousePos === null ) {
+	_onMouseMove( ev ) {
+		if( this._mousePos === null ) {
 			return;
 		}
 
-		let rect = this.element.getBoundingClientRect();
+		let rect = this._element.getBoundingClientRect();
 		let unit = 2.0 / Math.sqrt( rect.width * rect.height );
-		let dx = ev.clientX - this.mousePos[0];
-		let dy = ev.clientY - this.mousePos[1];
+		let dx = ev.clientX - this._mousePos[0];
+		let dy = ev.clientY - this._mousePos[1];
 		if( ev.shiftKey ) {
-			this.logScale -= unit * (dx + dy);
+			this._logScale -= unit * (dx + dy);
 		}
 		else {
-			let scale = Math.exp( this.logScale ) * unit;
-			this.phi   += scale * dx;
-			this.theta += scale * dy;
+			let scale = Math.exp( this._logScale ) * unit;
+			this._phi   += scale * dx;
+			this._theta += scale * dy;
 		}
-		this.mousePos = [ ev.clientX, ev.clientY ];
+		this._mousePos = [ ev.clientX, ev.clientY ];
 
 		this.update( true );
 	}
 
-	onDblClick( ev ) {
+	_onDblClick( ev ) {
 		let maps = Object.values( Mapping );
-		this.mapping = (this.mapping + 1) % maps.length;
-		this.renderer.setMapping( maps[this.mapping] );
+		this._mapping = (this._mapping + 1) % maps.length;
+		this._renderer.setMapping( maps[this._mapping] );
 		this.update( false );
 	}
 
 	update( fast ) {
 		let rot = Matrix.mul( 3,
-			Matrix.rotation( 3, 1, 2, this.theta ),
-			Matrix.rotation( 3, 0, 1, this.phi   )
+			Matrix.rotation( 3, 1, 2, this._theta ),
+			Matrix.rotation( 3, 0, 1, this._phi   )
 		);
-		let scale = Math.exp( this.logScale );
-		this.renderer.setCamera( rot, scale );
-		this.renderer.render( fast );
+		let scale = Math.exp( this._logScale );
+		this._renderer.setCamera( rot, scale );
+		this._renderer.render( fast );
 	}
 }
 
