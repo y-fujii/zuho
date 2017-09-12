@@ -54,7 +54,7 @@ class Renderer {
 		gl.attachShader( this.progFast, this.fragShaderFast );
 		gl.attachShader( this.progSlow, this.vertShader );
 		gl.attachShader( this.progSlow, this.fragShaderSlow );
-		this.setMapping( Mapping.stereographic );
+		this.setMapping( Object.values( Mapping )[0] );
 		this.setCamera( Matrix.identity( 3 ), 2.0 );
 
 		this.vbo = gl.createBuffer();
@@ -207,14 +207,73 @@ Renderer.prototype.vertSource = String.raw`
 `;
 
 let Mapping = {
-	stereographic: String.raw`
+	azEquiarea: String.raw`
+		vec3 unproject( vec2 p ) {
+			float t = dot( p, p );
+			return vec3( p, (2.0 - t) / sqrt( 4.0 - t ) );
+		}
+	`,
+	azConformal: String.raw`
 		vec3 unproject( vec2 p ) {
 			return vec3( p, 1.0 - 0.25 * dot( p, p ) );
 		}
 	`,
-	perspective: String.raw`
+	azPerspective: String.raw`
 		vec3 unproject( vec2 p ) {
 			return vec3( p, 1.0 );
+		}
+	`,
+	azOrthogonal: String.raw`
+		vec3 unproject( vec2 p ) {
+			return vec3( p, sqrt( 1.0 - dot( p, p ) ) );
+		}
+	`,
+	azEquidistant: String.raw`
+		vec3 unproject( vec2 p ) {
+			float r = length( p );
+			return vec3( p, r / tan( r ) );
+		}
+	`,
+	azReflect: String.raw`
+		vec3 unproject( vec2 p ) {
+			return vec3( p, 2.0 - 1.0 / sqrt( 1.0 - dot( p, p ) ) );
+		}
+	`,
+	cyConformal: String.raw`
+		vec3 unproject( vec2 p ) {
+			float phi = 2.0 * atan( exp( p[1] ) ) - pi / 2.0;
+			return vec3(
+				cos( phi ) * sin( p[0] ),
+				sin( phi ),
+				cos( phi ) * cos( p[0] )
+			);
+		}
+	`,
+	cyPerspective: String.raw`
+		vec3 unproject( vec2 p ) {
+			return vec3( sin( p[0] ), p[1], cos( p[0] ) );
+		}
+	`,
+	cyEquidistant: String.raw`
+		vec3 unproject( vec2 p ) {
+			return vec3(
+				cos( p[1] ) * sin( p[0] ),
+				sin( p[1] ),
+				cos( p[1] ) * cos( p[0] )
+			);
+		}
+	`,
+	mollweide: String.raw`
+		vec3 unproject( vec2 p ) {
+			float theta = asin( p[1] );
+			float sinPhi = (1.0 / pi) * (2.0 * theta + sin( 2.0 * theta ));
+			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
+			float lambda = (pi / 2.0) * p[0] / cos( theta );
+			return vec3(
+				cosPhi * sin( lambda ),
+				sinPhi,
+				cosPhi * cos( lambda )
+			);
 		}
 	`,
 };
