@@ -287,9 +287,11 @@ class Handler {
 		this._phi      = 0.0;
 		this._logScale = 0.0;
 		this._mapping  = 0;
+		this._timer    = null;
 		elem.addEventListener( "mousedown", this._onMouseDown.bind( this ) );
 		elem.addEventListener( "mouseup",   this._onMouseUp  .bind( this ) );
 		elem.addEventListener( "mousemove", this._onMouseMove.bind( this ) );
+		elem.addEventListener( "wheel",     this._onWheel    .bind( this ) );
 		elem.addEventListener( "dblclick",  this._onDblClick .bind( this ) );
 		this.update( false );
 	}
@@ -325,14 +327,31 @@ class Handler {
 			this._theta += scale * dy;
 		}
 		this._mousePos = [ ev.clientX, ev.clientY ];
-
 		this.update( true );
+	}
+
+	_onWheel( ev ) {
+		if( this._timer !== null ) {
+			window.clearTimeout( this._timer );
+			this._timer = null;
+		}
+		this._logScale += (
+			ev.deltaY < 0.0 ? +0.1 :
+			ev.deltaY > 0.0 ? -0.1 :
+			                   0.0
+		);
+		this.update( true );
+		this._timer = window.setTimeout( this._onTimer.bind( this ), 500 );
 	}
 
 	_onDblClick( ev ) {
 		let maps = Object.values( Mapping );
 		this._mapping = (this._mapping + 1) % maps.length;
 		this._renderer.setMapping( maps[this._mapping] );
+		this.update( false );
+	}
+
+	_onTimer( ev ) {
 		this.update( false );
 	}
 
