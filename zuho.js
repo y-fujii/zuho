@@ -210,7 +210,7 @@ let Mapping = {
 	azEquiarea: String.raw`
 		vec3 unproject( vec2 p ) {
 			float t = dot( p, p );
-			return vec3( p, (2.0 - t) / sqrt( 4.0 - t ) );
+			return vec3( p, (2.0 - t) * inversesqrt( 4.0 - t ) );
 		}
 	`,
 	azConformal: String.raw`
@@ -225,7 +225,7 @@ let Mapping = {
 	`,
 	azOrthogonal: String.raw`
 		vec3 unproject( vec2 p ) {
-			return vec3( p, sqrt( 1.0 - dot( p, p ) ) );
+			return vec3( p * inversesqrt( 1.0 - dot( p, p ) ), 1.0 );
 		}
 	`,
 	azEquidistant: String.raw`
@@ -236,7 +236,7 @@ let Mapping = {
 	`,
 	azReflect: String.raw`
 		vec3 unproject( vec2 p ) {
-			return vec3( p, 2.0 - 1.0 / sqrt( 1.0 - dot( p, p ) ) );
+			return vec3( p, 2.0 - inversesqrt( 1.0 - dot( p, p ) ) );
 		}
 	`,
 	cyConformal: String.raw`
