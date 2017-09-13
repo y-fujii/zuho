@@ -149,14 +149,20 @@ Renderer._fragSourceCommon = String.raw`
 	uniform sampler2D uTex;
 	varying vec2      vPos;
 
-	vec3 unproject( vec2 );
+	bool unproject( vec2, out vec3 );
 
 	vec4 sample( float dx, float dy ) {
-		vec2 pos = vPos + uPxSize * vec2( dx, dy );
-		vec3 dir = normalize( uRot * unproject( pos ) );
-		float u = (0.5 / pi) * atan( dir[1], dir[0] ) + 0.5;
-		float v = (1.0 / pi) * acos( dir[2] );
-		return texture2D( uTex, vec2( u, v ) );
+		vec2 p = vPos + uPxSize * vec2( dx, dy );
+		vec3 q;
+		if( unproject( p, q ) ) {
+			vec3 dir = normalize( uRot * q );
+			float u = (0.5 / pi) * atan( dir[1], dir[0] ) + 0.5;
+			float v = (1.0 / pi) * acos( dir[2] );
+			return texture2D( uTex, vec2( u, v ) );
+		}
+		else {
+			return vec4( 0.0, 0.0, 0.0, 1.0 );
+		}
 	}
 `;
 
@@ -207,73 +213,97 @@ Renderer._vertSource = String.raw`
 `;
 
 let Mapping = {
-	azEquiarea: String.raw`
-		vec3 unproject( vec2 p ) {
-			float t = dot( p, p );
-			return vec3( p, (2.0 - t) * inversesqrt( 4.0 - t ) );
+	azPerspective: String.raw`
+		bool unproject( vec2 p, out vec3 q ) {
+			q = vec3( p, 1.0 );
+			return true;
 		}
 	`,
 	azConformal: String.raw`
-		vec3 unproject( vec2 p ) {
-			return vec3( p, 1.0 - 0.25 * dot( p, p ) );
-		}
-	`,
-	azPerspective: String.raw`
-		vec3 unproject( vec2 p ) {
-			return vec3( p, 1.0 );
-		}
-	`,
-	azOrthogonal: String.raw`
-		vec3 unproject( vec2 p ) {
-			return vec3( p * inversesqrt( 1.0 - dot( p, p ) ), 1.0 );
+		bool unproject( vec2 p, out vec3 q ) {
+			q = vec3( p, 1.0 - 0.25 * dot( p, p ) );
+			return true;
 		}
 	`,
 	azEquidistant: String.raw`
-		vec3 unproject( vec2 p ) {
+		bool unproject( vec2 p, out vec3 q ) {
 			float r = length( p );
-			return vec3( p, r / tan( r ) );
+			q = vec3( p, r / tan( r ) );
+			return r < pi;
+		}
+	`,
+	azEquiarea: String.raw`
+		bool unproject( vec2 p, out vec3 q ) {
+			float t = dot( p, p );
+			q = vec3( p, (2.0 - t) * inversesqrt( 4.0 - t ) );
+			return t < 4.0;
+		}
+	`,
+	azOrthogonal: String.raw`
+		bool unproject( vec2 p, out vec3 q ) {
+			float t = dot( p, p );
+			q = vec3( p * inversesqrt( 1.0 - t ), 1.0 );
+			return t < 1.0;
 		}
 	`,
 	azReflect: String.raw`
-		vec3 unproject( vec2 p ) {
-			return vec3( p, 2.0 - inversesqrt( 1.0 - dot( p, p ) ) );
+		bool unproject( vec2 p, out vec3 q ) {
+			float t = dot( p, p );
+			q = vec3( p, 2.0 - inversesqrt( 1.0 - t ) );
+			return t < 1.0;
+		}
+	`,
+	cyPerspective: String.raw`
+		bool unproject( vec2 p, out vec3 q ) {
+			q = vec3( sin( p[0] ), p[1], cos( p[0] ) );
+			return abs( p[0] ) < pi;
 		}
 	`,
 	cyConformal: String.raw`
-		vec3 unproject( vec2 p ) {
+		bool unproject( vec2 p, out vec3 q ) {
 			float phi = 2.0 * atan( exp( p[1] ) ) - pi / 2.0;
-			return vec3(
+			q = vec3(
 				cos( phi ) * sin( p[0] ),
 				sin( phi ),
 				cos( phi ) * cos( p[0] )
 			);
-		}
-	`,
-	cyPerspective: String.raw`
-		vec3 unproject( vec2 p ) {
-			return vec3( sin( p[0] ), p[1], cos( p[0] ) );
+			return abs( p[0] ) < pi;
 		}
 	`,
 	cyEquidistant: String.raw`
-		vec3 unproject( vec2 p ) {
-			return vec3(
+		bool unproject( vec2 p, out vec3 q ) {
+			q = vec3(
 				cos( p[1] ) * sin( p[0] ),
 				sin( p[1] ),
 				cos( p[1] ) * cos( p[0] )
 			);
+			return abs( p[0] ) < pi && abs( p[1] ) < pi / 2.0;
+		}
+	`,
+	cyEquiarea: String.raw`
+		bool unproject( vec2 p, out vec3 q ) {
+			float sinPhi = p[1];
+			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
+			q = vec3(
+				cosPhi * sin( p[0] ),
+				sinPhi,
+				cosPhi * cos( p[0] )
+			);
+			return abs( p[0] ) < pi && abs( sinPhi ) < 1.0;
 		}
 	`,
 	mollweide: String.raw`
-		vec3 unproject( vec2 p ) {
+		bool unproject( vec2 p, out vec3 q ) {
 			float theta = asin( p[1] );
 			float sinPhi = (1.0 / pi) * (2.0 * theta + sin( 2.0 * theta ));
 			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
 			float lambda = (pi / 2.0) * p[0] / cos( theta );
-			return vec3(
+			q = vec3(
 				cosPhi * sin( lambda ),
 				sinPhi,
 				cosPhi * cos( lambda )
 			);
+			return abs( sinPhi ) < 1.0 && abs( lambda ) < pi;
 		}
 	`,
 };
