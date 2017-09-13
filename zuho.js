@@ -261,11 +261,13 @@ let Mapping = {
 	`,
 	cyConformal: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			float phi = 2.0 * atan( exp( p[1] ) ) - pi / 2.0;
+			float a = exp( p[1] );
+			float sinPhi = (a * a - 1.0) / (a * a + 1.0);
+			float cosPhi =     (2.0 * a) / (a * a + 1.0);
 			q = vec3(
-				cos( phi ) * sin( p[0] ),
-				sin( phi ),
-				cos( phi ) * cos( p[0] )
+				cosPhi * sin( p[0] ),
+				sinPhi,
+				cosPhi * cos( p[0] )
 			);
 			return abs( p[0] ) < pi;
 		}
@@ -298,6 +300,38 @@ let Mapping = {
 			float sinPhi = (1.0 / pi) * (2.0 * theta + sin( 2.0 * theta ));
 			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
 			float lambda = (pi / 2.0) * p[0] / cos( theta );
+			q = vec3(
+				cosPhi * sin( lambda ),
+				sinPhi,
+				cosPhi * cos( lambda )
+			);
+			return abs( sinPhi ) < 1.0 && abs( lambda ) < pi;
+		}
+	`,
+	hammer: String.raw`
+		bool unproject( vec2 p, out vec3 q ) {
+			float t = dot( vec2( 0.25, 0.5 ) * p, vec2( 0.25, 0.5 ) * p );
+			float z = sqrt( 1.0 - t );
+			float sinPhi = z * p[1];
+			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
+			float a = z * p[0] / (4.0 * z * z - 2.0);
+			float sinLambda =     (2.0 * a) / (a * a + 1.0);
+			float cosLambda = (1.0 - a * a) / (a * a + 1.0);
+			q = vec3(
+				cosPhi * sinLambda,
+				sinPhi,
+				cosPhi * cosLambda
+			);
+			return t < 0.5;
+		}
+	`,
+	eckert4: String.raw`
+		bool unproject( vec2 p, out vec3 q ) {
+			float sinTheta = sqrt( (4.0 + pi) / (4.0 * pi) ) * p[1];
+			float cosTheta = sqrt( 1.0 - sinTheta * sinTheta );
+			float sinPhi = (2.0 / (4.0 + pi)) * (asin( sinTheta ) + sinTheta * cosTheta + 2.0 * sinTheta);
+			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
+			float lambda = (sqrt( 4.0 * pi + pi * pi ) / 2.0) * p[0] / (1.0 + cosTheta);
 			q = vec3(
 				cosPhi * sin( lambda ),
 				sinPhi,
