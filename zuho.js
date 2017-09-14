@@ -255,51 +255,38 @@ let Mapping = {
 	`,
 	cyPerspective: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			q = vec3( sin( p[0] ), p[1], cos( p[0] ) );
-			return abs( p[0] ) < pi;
+			float t = p.y;
+			q = vec3( sin( p.x ), t, cos( p.x ) );
+			return abs( p.x ) < pi;
 		}
 	`,
 	cyConformal: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			float a = exp( p[1] );
-			float sinPhi = (a * a - 1.0) / (a * a + 1.0);
-			float cosPhi =     (2.0 * a) / (a * a + 1.0);
-			q = vec3(
-				cosPhi * sin( p[0] ),
-				sinPhi,
-				cosPhi * cos( p[0] )
-			);
-			return abs( p[0] ) < pi;
+			float t = 0.5 * (exp( +p.y ) - exp( -p.y ));
+			q = vec3( sin( p.x ), t, cos( p.x ) );
+			return abs( p.x ) < pi;
 		}
 	`,
 	cyEquidistant: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			q = vec3(
-				cos( p[1] ) * sin( p[0] ),
-				sin( p[1] ),
-				cos( p[1] ) * cos( p[0] )
-			);
-			return abs( p[0] ) < pi && abs( p[1] ) < pi / 2.0;
+			float t = tan( p.y );
+			q = vec3( sin( p.x ), t, cos( p.x ) );
+			return abs( p.x ) < pi && abs( p.y ) < pi / 2.0;
 		}
 	`,
 	cyEquiarea: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			float sinPhi = p[1];
-			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
-			q = vec3(
-				cosPhi * sin( p[0] ),
-				sinPhi,
-				cosPhi * cos( p[0] )
-			);
-			return abs( p[0] ) < pi && abs( sinPhi ) < 1.0;
+			float t = p.y * inversesqrt( 1.0 - p.y * p.y );
+			q = vec3( sin( p.x ), t, cos( p.x ) );
+			return abs( p.x ) < pi && abs( p.y ) < 1.0;
 		}
 	`,
 	mollweide: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			float theta = asin( p[1] );
+			float theta = asin( sqrt( 1.0 / 2.0 ) * p.y );
 			float sinPhi = (1.0 / pi) * (2.0 * theta + sin( 2.0 * theta ));
 			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
-			float lambda = (pi / 2.0) * p[0] / cos( theta );
+			float lambda = (pi / sqrt( 8.0 )) * p.x / cos( theta );
 			q = vec3(
 				cosPhi * sin( lambda ),
 				sinPhi,
@@ -312,26 +299,24 @@ let Mapping = {
 		bool unproject( vec2 p, out vec3 q ) {
 			float t = dot( vec2( 0.25, 0.5 ) * p, vec2( 0.25, 0.5 ) * p );
 			float z = sqrt( 1.0 - t );
-			float sinPhi = z * p[1];
+			float sinPhi = z * p.y;
 			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
-			float a = z * p[0] / (4.0 * z * z - 2.0);
-			float sinLambda =     (2.0 * a) / (a * a + 1.0);
-			float cosLambda = (1.0 - a * a) / (a * a + 1.0);
+			float a = z * p.x / (4.0 * z * z - 2.0);
 			q = vec3(
-				cosPhi * sinLambda,
-				sinPhi,
-				cosPhi * cosLambda
+				cosPhi * (2.0 * a),
+				sinPhi * (1.0 + a * a),
+				cosPhi * (1.0 - a * a)
 			);
 			return t < 0.5;
 		}
 	`,
 	eckert4: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			float sinTheta = sqrt( (4.0 + pi) / (4.0 * pi) ) * p[1];
+			float sinTheta = sqrt( (4.0 + pi) / (4.0 * pi) ) * p.y;
 			float cosTheta = sqrt( 1.0 - sinTheta * sinTheta );
 			float sinPhi = (2.0 / (4.0 + pi)) * (asin( sinTheta ) + sinTheta * cosTheta + 2.0 * sinTheta);
 			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
-			float lambda = (sqrt( 4.0 * pi + pi * pi ) / 2.0) * p[0] / (1.0 + cosTheta);
+			float lambda = (sqrt( 4.0 * pi + pi * pi ) / 2.0) * p.x / (1.0 + cosTheta);
 			q = vec3(
 				cosPhi * sin( lambda ),
 				sinPhi,
