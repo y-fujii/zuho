@@ -1,8 +1,22 @@
 // (c) Yasuhiro Fujii <y-fujii at mimosa-pudica.net>, under MIT License.
 "use strict";
 
+if( NodeList.prototype[Symbol.iterator] === undefined ) {
+	NodeList.prototype[Symbol.iterator] = Array.prototype[Symbol.iterator];
+}
+if( Element.prototype.setCapture === undefined ) {
+	Element.prototype.setCapture = function() {};
+}
+if( Element.prototype.requestFullscreen === undefined ) {
+	Element.prototype.requestFullscreen =
+		Element.prototype.mozRequestFullScreen ||
+		Element.prototype.webkitRequestFullscreen ||
+		Element.prototype.msRequestFullscreen;
+}
 
-class Matrix {
+let zuho = {};
+
+zuho.Matrix = class {
 	static mul( n, x, y ) {
 		console.assert( x.length == n * n && y.length == n * n );
 		let z = new Float32Array( n * n );
@@ -38,28 +52,31 @@ class Matrix {
 		z[j * n + j] = +cos;
 		return z;
 	}
-}
+};
 
-class Renderer {
-	constructor( elem ) {
-		let gl = this._gl = elem.getContext( "webgl" );
+zuho.Renderer = class {
+	constructor( canvas ) {
+		let gl = this._gl = canvas.getContext( "webgl" ) || canvas.getContext( "experimental-webgl" );
+
+		this._canvas = canvas;
+		this.resize();
 
 		this._vertShader     = gl.createShader( gl.VERTEX_SHADER );
 		this._fragShaderFast = gl.createShader( gl.FRAGMENT_SHADER );
 		this._fragShaderSlow = gl.createShader( gl.FRAGMENT_SHADER );
 		this._progFast       = gl.createProgram();
 		this._progSlow       = gl.createProgram();
-		this._compile( this._vertShader, Renderer._vertSource );
+		this._compile( this._vertShader, zuho.Renderer._vertSource );
 		gl.attachShader( this._progFast, this._vertShader );
 		gl.attachShader( this._progFast, this._fragShaderFast );
 		gl.attachShader( this._progSlow, this._vertShader );
 		gl.attachShader( this._progSlow, this._fragShaderSlow );
-		this.setMapping( Object.values( Mapping )[0] );
-		this.setCamera( Matrix.identity( 3 ), 2.0 );
+		this.setMapping( Object.values( zuho.Mapping )[0] );
+		this.setCamera( zuho.Matrix.identity( 3 ), 2.0 );
 
 		this._vbo = gl.createBuffer();
 		gl.bindBuffer( gl.ARRAY_BUFFER, this._vbo );
-		gl.bufferData( gl.ARRAY_BUFFER, Renderer._vertices, gl.STATIC_DRAW );
+		gl.bufferData( gl.ARRAY_BUFFER, zuho.Renderer._vertices, gl.STATIC_DRAW );
 
 		this._tex = gl.createTexture();
 		gl.bindTexture( gl.TEXTURE_2D, this._tex );
@@ -80,8 +97,8 @@ class Renderer {
 	}
 
 	setMapping( code ) {
-		this._compile( this._fragShaderFast, Renderer._fragSourceCommon + Renderer._fragSourceFast + code );
-		this._compile( this._fragShaderSlow, Renderer._fragSourceCommon + Renderer._fragSourceSlow + code );
+		this._compile( this._fragShaderFast, zuho.Renderer._fragSourceCommon + zuho.Renderer._fragSourceFast + code );
+		this._compile( this._fragShaderSlow, zuho.Renderer._fragSourceCommon + zuho.Renderer._fragSourceSlow + code );
 		this._link( this._progFast );
 		this._link( this._progSlow );
 	}
@@ -89,6 +106,13 @@ class Renderer {
 	setCamera( rot, scale ) {
 		this._rotation = rot;
 		this._scale    = scale;
+	}
+
+	resize() {
+		let rect = this._canvas.getBoundingClientRect();
+		this._canvas.width  = rect.width  * devicePixelRatio;
+		this._canvas.height = rect.height * devicePixelRatio;
+		this._gl.viewport( 0.0, 0.0, this._canvas.width, this._canvas.height );
 	}
 
 	render( fast ) {
@@ -135,13 +159,13 @@ class Renderer {
 			console.log( log );
 		}
 	}
-}
+};
 
-Renderer._vertices = new Float32Array( [
+zuho.Renderer._vertices = new Float32Array( [
 	-1.0, -1.0, +1.0, -1.0, -1.0, +1.0, +1.0, +1.0,
 ] );
 
-Renderer._fragSourceCommon = String.raw`
+zuho.Renderer._fragSourceCommon = String.raw`
 	precision mediump float;
 	const   float     pi = 3.14159265359;
 	uniform float     uPxSize;
@@ -166,13 +190,13 @@ Renderer._fragSourceCommon = String.raw`
 	}
 `;
 
-Renderer._fragSourceFast = String.raw`
+zuho.Renderer._fragSourceFast = String.raw`
 	void main() {
 		gl_FragColor = sample( 0.0, 0.0 );
 	}
 `;
 
-Renderer._fragSourceSlow = String.raw`
+zuho.Renderer._fragSourceSlow = String.raw`
 	vec4 sampleSq( float dx, float dy ) {
 		vec4 s = sample( dx, dy );
 		return s * s;
@@ -201,7 +225,7 @@ Renderer._fragSourceSlow = String.raw`
 	}
 `;
 
-Renderer._vertSource = String.raw`
+zuho.Renderer._vertSource = String.raw`
 	uniform   vec2 uScale;
 	attribute vec2 aPos;
 	varying   vec2 vPos;
@@ -212,7 +236,7 @@ Renderer._vertSource = String.raw`
 	}
 `;
 
-let Mapping = {
+zuho.Mapping = {
 	azPerspective: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			q = vec3( p, 1.0 );
@@ -327,7 +351,7 @@ let Mapping = {
 	`,
 };
 
-class Handler {
+zuho.Handler = class {
 	constructor( elem, renderer ) {
 		this._element  = elem;
 		this._renderer = renderer;
@@ -335,13 +359,12 @@ class Handler {
 		this._theta    = Math.PI / -2.0;
 		this._phi      = 0.0;
 		this._logScale = 0.0;
-		this._mapping  = 0;
 		this._timer    = null;
 		elem.addEventListener( "mousedown", this._onMouseDown.bind( this ) );
 		elem.addEventListener( "mouseup",   this._onMouseUp  .bind( this ) );
 		elem.addEventListener( "mousemove", this._onMouseMove.bind( this ) );
 		elem.addEventListener( "wheel",     this._onWheel    .bind( this ) );
-		elem.addEventListener( "dblclick",  this._onDblClick .bind( this ) );
+		window.addEventListener( "resize",  this._onResize   .bind( this ) );
 		this.update( false );
 	}
 
@@ -351,11 +374,13 @@ class Handler {
 		}
 		this._mousePos = [ ev.clientX, ev.clientY ];
 		ev.target.setCapture();
+		ev.preventDefault();
 	}
 
 	_onMouseUp( ev ) {
 		this._mousePos = null;
 		this.update( false );
+		ev.preventDefault();
 	}
 
 	_onMouseMove( ev ) {
@@ -377,6 +402,7 @@ class Handler {
 		}
 		this._mousePos = [ ev.clientX, ev.clientY ];
 		this.update( true );
+		ev.preventDefault();
 	}
 
 	_onWheel( ev ) {
@@ -390,47 +416,134 @@ class Handler {
 			                   0.0
 		);
 		this.update( true );
-		this._timer = window.setTimeout( this._onTimer.bind( this ), 500 );
-	}
-
-	_onDblClick( ev ) {
-		let maps = Object.values( Mapping );
-		this._mapping = (this._mapping + 1) % maps.length;
-		this._renderer.setMapping( maps[this._mapping] );
-		this.update( false );
+		this._timer = window.setTimeout( this._onTimer.bind( this ), 250 );
+		ev.preventDefault();
 	}
 
 	_onTimer( ev ) {
 		this.update( false );
 	}
 
+	_onResize( ev ) {
+		this._renderer.resize();
+	}
+
 	update( fast ) {
-		let rot = Matrix.mul( 3,
-			Matrix.rotation( 3, 1, 2, this._theta ),
-			Matrix.rotation( 3, 0, 1, this._phi   )
+		if( !fast ) {
+			this._renderer.resize();
+		}
+
+		let rot = zuho.Matrix.mul( 3,
+			zuho.Matrix.rotation( 3, 1, 2, this._theta ),
+			zuho.Matrix.rotation( 3, 0, 1, this._phi   )
 		);
 		let scale = Math.exp( this._logScale );
 		this._renderer.setCamera( rot, scale );
 		this._renderer.render( fast );
 	}
-}
+};
+
+zuho.Menu = class {
+	constructor( elem, renderer ) {
+		let menu = document.createRange().createContextualFragment( zuho.Menu.template );
+		for( let e of menu.querySelectorAll( ".mapping" ) ) {
+			let type = e.dataset.type;
+			e.onclick = function( ev ) {
+				renderer.setMapping( zuho.Mapping[type] );
+				renderer.render( false );
+				ev.preventDefault();
+			};
+		}
+		let e = menu.querySelector( ".fullscreen" );
+		e.onclick = function( ev ) {
+			elem.requestFullscreen();
+		};
+		elem.appendChild( menu );
+	}
+};
+
+zuho.Menu.template = String.raw`
+	<menu>
+		<menuitem class="mapping" data-type="azPerspective">Azimuthal | Perspective</menuitem>
+		<menuitem class="mapping" data-type="azConformal">Azimuthal | Conformal</menuitem>
+		<menuitem class="mapping" data-type="azEquidistant">Azimuthal | Equidistant</menuitem>
+		<menuitem class="mapping" data-type="azEquiarea">Azimuthal | Equiarea</menuitem>
+		<menuitem class="mapping" data-type="azOrthogonal">Azimuthal | Orthogonal</menuitem>
+		<menuitem class="mapping" data-type="azReflect">Azimuthal | Reflect</menuitem>
+		<menuitem class="mapping" data-type="cyPerspective">Cylindrical | Perspective</menuitem>
+		<menuitem class="mapping" data-type="cyConformal">Cylindrical | Conformal</menuitem>
+		<menuitem class="mapping" data-type="cyEquidistant">Cylindrical | Equidistant</menuitem>
+		<menuitem class="mapping" data-type="cyEquiarea">Cylindrical | Equiarea</menuitem>
+		<menuitem class="mapping" data-type="mollweide">Mollweide</menuitem>
+		<menuitem class="mapping" data-type="hammer">Hammer</menuitem>
+		<menuitem class="mapping" data-type="eckert4">Eckert IV</menuitem>
+		<hr>
+		<menuitem class="fullscreen">Fullscreen</menuitem>
+	</menu>
+`;
+
+zuho.stylesheet = String.raw`
+	.equirectangular * {
+		padding: 0;
+		margin:  0;
+		        user-select: none;
+		   -moz-user-select: none;
+		-webkit-user-select: none;
+		    -ms-user-select: none;
+	}
+	.equirectangular canvas, .equirectangular menu, .equirectangular menu menuitem {
+		display: block;
+	}
+	.equirectangular canvas, .equirectangular menu {
+		position: absolute;
+	}
+	.equirectangular canvas {
+		width:  100%;
+		height: 100%;
+	}
+	.equirectangular menu {
+		right: 0;
+		top:   0;
+		z-index: 1;
+		font: x-small/1.0 sans-serif;
+		color: #ffffff;
+		background: #303030;
+		opacity: 0.25;
+		transition: opacity 1s;
+	}
+	.equirectangular menu:hover {
+		opacity: 0.875;
+		transition: opacity 0s;
+	}
+	.equirectangular menu hr {
+		height: 1px;
+		margin: 0.5em 1.0em;
+		background: #ffffff;
+	}
+	.equirectangular menu menuitem {
+		padding: 0.5em 1.0em;
+
+	}
+	.equirectangular menu menuitem:hover {
+		background: #406080;
+	}
+`;
 
 window.addEventListener( "DOMContentLoaded", function( ev ) {
-	for( let elem of document.querySelectorAll( ".equirectangular" ) ) {
+	let style = document.createElement( "style" );
+	style.textContent = zuho.stylesheet;
+	document.head.insertBefore( style, document.head.firstChild );
+
+	for( let _div of document.querySelectorAll( "div.equirectangular" ) ) {
+		let div = _div;
 		let img = new Image();
-		img.onload = () => {
-			let rect = elem.getBoundingClientRect();
-			let canvas = document.createElement( "canvas" );
-			canvas.style.position = "absolute";
-			canvas.style.width    = String( rect.width  ) + "px";
-			canvas.style.height   = String( rect.height ) + "px";
-			canvas.width  = rect.width  * devicePixelRatio;
-			canvas.height = rect.height * devicePixelRatio;
-			let renderer = new Renderer( canvas );
+		img.onload = function() {
+			let canvas = div.appendChild( document.createElement( "canvas" ) );
+			let renderer = new zuho.Renderer( canvas );
 			renderer.setImage( img );
-			new Handler( canvas, renderer );
-			elem.appendChild( canvas );
-		}
-		img.src = elem.getAttribute( "src" );
+			new zuho.Handler( div, renderer );
+			new zuho.Menu   ( div, renderer );
+		};
+		img.src = div.dataset.src;
 	}
 } );
