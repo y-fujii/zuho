@@ -426,6 +426,7 @@ zuho.Handler = class {
 
 	_onResize( ev ) {
 		this._renderer.resize();
+		this._renderer.render( false );
 	}
 
 	update( fast ) {
