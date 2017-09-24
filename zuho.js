@@ -495,14 +495,12 @@ zuho.stylesheet = String.raw`
 	.equirectangular canvas, .equirectangular menu, .equirectangular menu menuitem {
 		display: block;
 	}
-	.equirectangular canvas, .equirectangular menu {
-		position: absolute;
-	}
 	.equirectangular canvas {
 		width:  100%;
 		height: 100%;
 	}
 	.equirectangular menu {
+		position: absolute;
 		right: 0;
 		top:   0;
 		z-index: 1;
