@@ -56,7 +56,16 @@ zuho.Matrix = class {
 
 zuho.Renderer = class {
 	constructor( canvas ) {
-		let gl = this._gl = canvas.getContext( "webgl" ) || canvas.getContext( "experimental-webgl" );
+		let params = {
+			alpha: true,
+			depth: false,
+			stencil: false,
+			antialias: false,
+			premultipliedAlpha: true,
+		};
+		let gl = this._gl =
+			canvas.getContext( "webgl", params ) ||
+			canvas.getContext( "experimental-webgl", params );
 
 		this._canvas = canvas;
 		this.resize();
@@ -117,6 +126,9 @@ zuho.Renderer = class {
 
 	render( fast ) {
 		let gl = this._gl;
+
+		gl.disable( gl.BLEND );
+
 		let prog = fast ? this._progFast : this._progSlow;
 		gl.useProgram( prog );
 		let f = this._scale / Math.sqrt( gl.drawingBufferWidth * gl.drawingBufferHeight );
@@ -166,7 +178,12 @@ zuho.Renderer._vertices = new Float32Array( [
 ] );
 
 zuho.Renderer._fragSourceCommon = String.raw`
-	precision mediump float;
+	#ifdef GL_FRAGMENT_PRECISION_HIGH
+		precision highp   float;
+	#else
+		precision mediump float;
+	#endif
+
 	const   float     pi = 3.14159265359;
 	uniform float     uPxSize;
 	uniform mat3      uRot;
@@ -185,7 +202,7 @@ zuho.Renderer._fragSourceCommon = String.raw`
 			return texture2D( uTex, vec2( u, v ) );
 		}
 		else {
-			return vec4( 0.0, 0.0, 0.0, 1.0 );
+			return vec4( 0.0 );
 		}
 	}
 `;
@@ -199,12 +216,12 @@ zuho.Renderer._fragSourceFast = String.raw`
 zuho.Renderer._fragSourceSlow = String.raw`
 	vec4 sampleSq( float dx, float dy ) {
 		vec4 s = sample( dx, dy );
-		return s * s;
+		return vec4( s.xyz * s.xyz, s.w );
 	}
 
 	void main() {
 		// (2, 3) halton vector sequences.
-		vec4 acc =
+		vec4 acc = (1.0 / 16.0) * (
 			(((sampleSq(  1.0 /  2.0 - 0.5,  1.0 /  3.0 - 0.5 ) +
 			   sampleSq(  1.0 /  4.0 - 0.5,  2.0 /  3.0 - 0.5 )) +
 			  (sampleSq(  3.0 /  4.0 - 0.5,  1.0 /  9.0 - 0.5 ) +
@@ -220,8 +237,9 @@ zuho.Renderer._fragSourceSlow = String.raw`
 			 ((sampleSq( 11.0 / 16.0 - 0.5, 13.0 / 27.0 - 0.5 ) +
 			   sampleSq(  7.0 / 16.0 - 0.5, 22.0 / 27.0 - 0.5 )) +
 			  (sampleSq( 15.0 / 16.0 - 0.5,  7.0 / 27.0 - 0.5 ) +
-			   sampleSq(  1.0 / 32.0 - 0.5, 16.0 / 27.0 - 0.5 ))));
-		gl_FragColor = sqrt( (1.0 / 16.0) * acc );
+			   sampleSq(  1.0 / 32.0 - 0.5, 16.0 / 27.0 - 0.5 ))))
+		);
+		gl_FragColor = vec4( sqrt( acc.xyz ), acc.w );
 	}
 `;
 
@@ -425,8 +443,7 @@ zuho.Handler = class {
 	}
 
 	_onResize( ev ) {
-		this._renderer.resize();
-		this._renderer.render( false );
+		this.update( false );
 	}
 
 	update( fast ) {
