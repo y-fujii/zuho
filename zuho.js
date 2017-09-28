@@ -14,12 +14,12 @@ if( Element.prototype.requestFullscreen === undefined ) {
 		Element.prototype.msRequestFullscreen;
 }
 
-let zuho = {};
+const zuho = {};
 
 zuho.Matrix = class {
 	static mul( n, x, y ) {
 		console.assert( x.length == n * n && y.length == n * n );
-		let z = new Float32Array( n * n );
+		const z = new Float32Array( n * n );
 		for( let i = 0; i < n; ++i ) {
 			for( let j = 0; j < n; ++j ) {
 				let sum = 0.0;
@@ -33,7 +33,7 @@ zuho.Matrix = class {
 	}
 
 	static identity( n ) {
-		let z = new Float32Array( n * n );
+		const z = new Float32Array( n * n );
 		z.fill( 0.0 );
 		for( let i = 0; i < n; ++i ) {
 			z[i * n + i] = 1.0;
@@ -43,9 +43,9 @@ zuho.Matrix = class {
 
 	static rotation( n, i, j, arg ) {
 		console.assert( i < n && j < n );
-		let z = this.identity( n );
-		let cos = Math.cos( arg );
-		let sin = Math.sin( arg );
+		const z = this.identity( n );
+		const cos = Math.cos( arg );
+		const sin = Math.sin( arg );
 		z[i * n + i] = +cos;
 		z[i * n + j] = -sin;
 		z[j * n + i] = +sin;
@@ -56,14 +56,14 @@ zuho.Matrix = class {
 
 zuho.Renderer = class {
 	constructor( canvas ) {
-		let params = {
+		const params = {
 			alpha: true,
 			depth: false,
 			stencil: false,
 			antialias: false,
 			premultipliedAlpha: true,
 		};
-		let gl = this._gl =
+		const gl = this._gl =
 			canvas.getContext( "webgl", params ) ||
 			canvas.getContext( "experimental-webgl", params );
 
@@ -99,7 +99,7 @@ zuho.Renderer = class {
 	}
 
 	setImage( img ) {
-		let gl = this._gl;
+		const gl = this._gl;
 		gl.bindTexture( gl.TEXTURE_2D, this._tex );
 		gl.texImage2D( gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img );
 		gl.bindTexture( gl.TEXTURE_2D, null );
@@ -118,22 +118,22 @@ zuho.Renderer = class {
 	}
 
 	resize() {
-		let rect = this._canvas.getBoundingClientRect();
+		const rect = this._canvas.getBoundingClientRect();
 		this._canvas.width  = rect.width  * devicePixelRatio;
 		this._canvas.height = rect.height * devicePixelRatio;
 		this._gl.viewport( 0.0, 0.0, this._canvas.width, this._canvas.height );
 	}
 
 	render( fast ) {
-		let gl = this._gl;
+		const gl = this._gl;
 
 		gl.disable( gl.BLEND );
 
-		let prog = fast ? this._progFast : this._progSlow;
+		const prog = fast ? this._progFast : this._progSlow;
 		gl.useProgram( prog );
-		let f = this._scale / Math.sqrt( gl.drawingBufferWidth * gl.drawingBufferHeight );
-		let sx = f * gl.drawingBufferWidth;
-		let sy = f * gl.drawingBufferHeight;
+		const f = this._scale / Math.sqrt( gl.drawingBufferWidth * gl.drawingBufferHeight );
+		const sx = f * gl.drawingBufferWidth;
+		const sy = f * gl.drawingBufferHeight;
 		gl.uniformMatrix3fv( gl.getUniformLocation( prog, "uRot"    ), false, this._rotation );
 		gl.uniform2f       ( gl.getUniformLocation( prog, "uScale"  ),        sx, sy         );
 		gl.uniform1f       ( gl.getUniformLocation( prog, "uPxSize" ),        2.0 * f        );
@@ -154,19 +154,19 @@ zuho.Renderer = class {
 	}
 
 	_compile( shader, src ) {
-		let gl = this._gl;
+		const gl = this._gl;
 		gl.shaderSource( shader, src );
 		gl.compileShader( shader );
-		let log = gl.getShaderInfoLog( shader );
+		const log = gl.getShaderInfoLog( shader );
 		if( log.length > 0 ) {
 			console.log( log );
 		}
 	}
 
 	_link( prog ) {
-		let gl = this._gl;
+		const gl = this._gl;
 		gl.linkProgram( prog );
-		let log = gl.getProgramInfoLog( prog );
+		const log = gl.getProgramInfoLog( prog );
 		if( log.length > 0 ) {
 			console.log( log );
 		}
@@ -406,15 +406,15 @@ zuho.Handler = class {
 			return;
 		}
 
-		let rect = this._element.getBoundingClientRect();
-		let unit = 2.0 / Math.sqrt( rect.width * rect.height );
-		let dx = ev.clientX - this._mousePos[0];
-		let dy = ev.clientY - this._mousePos[1];
+		const rect = this._element.getBoundingClientRect();
+		const unit = 2.0 / Math.sqrt( rect.width * rect.height );
+		const dx = ev.clientX - this._mousePos[0];
+		const dy = ev.clientY - this._mousePos[1];
 		if( ev.shiftKey ) {
 			this._logScale -= unit * (dx + dy);
 		}
 		else {
-			let scale = Math.exp( this._logScale ) * unit;
+			const scale = Math.exp( this._logScale ) * unit;
 			this._phi   += scale * dx;
 			this._theta += scale * dy;
 		}
@@ -451,11 +451,11 @@ zuho.Handler = class {
 			this._renderer.resize();
 		}
 
-		let rot = zuho.Matrix.mul( 3,
+		const rot = zuho.Matrix.mul( 3,
 			zuho.Matrix.rotation( 3, 1, 2, this._theta ),
 			zuho.Matrix.rotation( 3, 0, 1, this._phi   )
 		);
-		let scale = Math.exp( this._logScale );
+		const scale = Math.exp( this._logScale );
 		this._renderer.setCamera( rot, scale );
 		this._renderer.render( fast );
 	}
@@ -463,16 +463,16 @@ zuho.Handler = class {
 
 zuho.Menu = class {
 	constructor( elem, renderer ) {
-		let menu = document.createRange().createContextualFragment( zuho.Menu.template );
+		const menu = document.createRange().createContextualFragment( zuho.Menu.template );
 		for( let e of menu.querySelectorAll( ".mapping" ) ) {
-			let type = e.dataset.type;
+			const type = e.dataset.type;
 			e.onclick = function( ev ) {
 				renderer.setMapping( zuho.Mapping[type] );
 				renderer.render( false );
 				ev.preventDefault();
 			};
 		}
-		let e = menu.querySelector( ".fullscreen" );
+		const e = menu.querySelector( ".fullscreen" );
 		e.onclick = function( ev ) {
 			elem.requestFullscreen();
 		};
@@ -546,16 +546,16 @@ zuho.stylesheet = String.raw`
 `;
 
 window.addEventListener( "DOMContentLoaded", function( ev ) {
-	let style = document.createElement( "style" );
+	const style = document.createElement( "style" );
 	style.textContent = zuho.stylesheet;
 	document.head.insertBefore( style, document.head.firstChild );
 
 	for( let _div of document.querySelectorAll( "div.equirectangular" ) ) {
-		let div = _div;
-		let img = new Image();
+		const div = _div;
+		const img = new Image();
 		img.onload = function() {
-			let canvas = div.appendChild( document.createElement( "canvas" ) );
-			let renderer = new zuho.Renderer( canvas );
+			const canvas = div.appendChild( document.createElement( "canvas" ) );
+			const renderer = new zuho.Renderer( canvas );
 			renderer.setImage( img );
 			new zuho.Handler( div, renderer );
 			new zuho.Menu   ( div, renderer );
