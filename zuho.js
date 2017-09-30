@@ -81,7 +81,7 @@ zuho.Renderer = class {
 		gl.attachShader( this._progSlow, this._vertShader );
 		gl.attachShader( this._progSlow, this._fragShaderSlow );
 		this.setMapping( Object.values( zuho.Mapping )[0] );
-		this.setCamera( zuho.Matrix.identity( 3 ), 2.0 );
+		this.setCamera( zuho.Matrix.identity( 3 ), 1.0 );
 
 		this._vbo = gl.createBuffer();
 		gl.bindBuffer( gl.ARRAY_BUFFER, this._vbo );
@@ -257,69 +257,69 @@ zuho.Renderer._vertSource = String.raw`
 zuho.Mapping = {
 	azPerspective: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			q = vec3( p, 1.0 );
+			q = vec3( p, -1.0 );
 			return true;
 		}
 	`,
 	azConformal: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			q = vec3( p, 1.0 - 0.25 * dot( p, p ) );
+			q = vec3( p, 0.25 * dot( p, p ) - 1.0 );
 			return true;
 		}
 	`,
 	azEquidistant: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			float r = length( p );
-			q = vec3( p, r / tan( r ) );
+			q = vec3( p, -r / tan( r ) );
 			return r < pi;
 		}
 	`,
 	azEquiarea: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			float t = dot( p, p );
-			q = vec3( p, (2.0 - t) * inversesqrt( 4.0 - t ) );
+			q = vec3( p, (t - 2.0) * inversesqrt( 4.0 - t ) );
 			return t < 4.0;
 		}
 	`,
 	azOrthogonal: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			float t = dot( p, p );
-			q = vec3( p * inversesqrt( 1.0 - t ), 1.0 );
+			q = vec3( p * inversesqrt( 1.0 - t ), -1.0 );
 			return t < 1.0;
 		}
 	`,
 	azReflect: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			float t = dot( p, p );
-			q = vec3( p, 2.0 - inversesqrt( 1.0 - t ) );
+			q = vec3( p, inversesqrt( 1.0 - t ) - 2.0 );
 			return t < 1.0;
 		}
 	`,
 	cyPerspective: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			float t = p.y;
-			q = vec3( sin( p.x ), t, cos( p.x ) );
+			q = vec3( sin( p.x ), t, -cos( p.x ) );
 			return abs( p.x ) < pi;
 		}
 	`,
 	cyConformal: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			float t = 0.5 * (exp( +p.y ) - exp( -p.y ));
-			q = vec3( sin( p.x ), t, cos( p.x ) );
+			q = vec3( sin( p.x ), t, -cos( p.x ) );
 			return abs( p.x ) < pi;
 		}
 	`,
 	cyEquidistant: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			float t = tan( p.y );
-			q = vec3( sin( p.x ), t, cos( p.x ) );
+			q = vec3( sin( p.x ), t, -cos( p.x ) );
 			return abs( p.x ) < pi && abs( p.y ) < pi / 2.0;
 		}
 	`,
 	cyEquiarea: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			float t = p.y * inversesqrt( 1.0 - p.y * p.y );
-			q = vec3( sin( p.x ), t, cos( p.x ) );
+			q = vec3( sin( p.x ), t, -cos( p.x ) );
 			return abs( p.x ) < pi && abs( p.y ) < 1.0;
 		}
 	`,
@@ -330,9 +330,9 @@ zuho.Mapping = {
 			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
 			float lambda = (pi / sqrt( 8.0 )) * p.x / cos( theta );
 			q = vec3(
-				cosPhi * sin( lambda ),
+				cosPhi * +sin( lambda ),
 				sinPhi,
-				cosPhi * cos( lambda )
+				cosPhi * -cos( lambda )
 			);
 			return abs( sinPhi ) < 1.0 && abs( lambda ) < pi;
 		}
@@ -345,9 +345,9 @@ zuho.Mapping = {
 			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
 			float a = z * p.x / (4.0 * z * z - 2.0);
 			q = vec3(
-				cosPhi * (2.0 * a),
-				sinPhi * (1.0 + a * a),
-				cosPhi * (1.0 - a * a)
+				cosPhi * (a * 2.0),
+				sinPhi * (a * a + 1.0),
+				cosPhi * (a * a - 1.0)
 			);
 			return t < 0.5;
 		}
@@ -360,9 +360,9 @@ zuho.Mapping = {
 			float cosPhi = sqrt( 1.0 - sinPhi * sinPhi );
 			float lambda = (sqrt( 4.0 * pi + pi * pi ) / 2.0) * p.x / (1.0 + cosTheta);
 			q = vec3(
-				cosPhi * sin( lambda ),
+				cosPhi * +sin( lambda ),
 				sinPhi,
-				cosPhi * cos( lambda )
+				cosPhi * -cos( lambda )
 			);
 			return abs( sinPhi ) < 1.0 && abs( lambda ) < pi;
 		}
@@ -382,7 +382,8 @@ zuho.Handler = class {
 		elem.addEventListener( "mouseup",   this._onMouseUp  .bind( this ) );
 		elem.addEventListener( "mousemove", this._onMouseMove.bind( this ) );
 		elem.addEventListener( "wheel",     this._onWheel    .bind( this ) );
-		window.addEventListener( "resize",  this._onResize   .bind( this ) );
+		window.addEventListener( "resize",            this._onResize     .bind( this ) );
+		window.addEventListener( "deviceorientation", this._onOrientation.bind( this ) );
 		this.update( false );
 	}
 
@@ -415,8 +416,8 @@ zuho.Handler = class {
 		}
 		else {
 			const scale = Math.exp( this._logScale ) * unit;
-			this._phi   += scale * dx;
-			this._theta += scale * dy;
+			this._phi   -= scale * dx;
+			this._theta -= scale * dy;
 		}
 		this._mousePos = [ ev.clientX, ev.clientY ];
 		this.update( true );
@@ -444,6 +445,20 @@ zuho.Handler = class {
 
 	_onResize( ev ) {
 		this.update( false );
+		screen.orientation.lock( "landscape-primary" );
+	}
+
+	_onOrientation( ev ) {
+		let rot = zuho.Matrix.identity( 3 );
+		rot = zuho.Matrix.mul( 3, zuho.Matrix.rotation( 3, 1, 0, (Math.PI / 180.0) * ev.alpha ), rot );
+		rot = zuho.Matrix.mul( 3, zuho.Matrix.rotation( 3, 2, 1, (Math.PI / 180.0) * ev.beta  ), rot );
+		rot = zuho.Matrix.mul( 3, zuho.Matrix.rotation( 3, 0, 2, (Math.PI / 180.0) * ev.gamma ), rot );
+		if( screen.orientation.angle !== undefined ) {
+			rot = zuho.Matrix.mul( 3, zuho.Matrix.rotation( 3, 0, 1, (Math.PI / 180.0) * screen.orientation.angle ), rot );
+		}
+		const scale = Math.exp( this._logScale );
+		this._renderer.setCamera( rot, scale );
+		this._renderer.render( true );
 	}
 
 	update( fast ) {
@@ -504,6 +519,7 @@ zuho.stylesheet = String.raw`
 	.equirectangular * {
 		padding: 0;
 		margin:  0;
+		border: none;
 		        user-select: none;
 		   -moz-user-select: none;
 		-webkit-user-select: none;
