@@ -374,16 +374,65 @@ zuho.Handler = class {
 		this._element  = elem;
 		this._renderer = renderer;
 		this._mousePos = null;
+		this._touchVar = null;
 		this._theta    = Math.PI / -2.0;
 		this._phi      = 0.0;
-		this._logScale = 0.0;
+		this._scale    = 1.0;
 		this._timer    = null;
-		elem.addEventListener( "mousedown", this._onMouseDown.bind( this ) );
-		elem.addEventListener( "mouseup",   this._onMouseUp  .bind( this ) );
-		elem.addEventListener( "mousemove", this._onMouseMove.bind( this ) );
-		elem.addEventListener( "wheel",     this._onWheel    .bind( this ) );
-		window.addEventListener( "resize",            this._onResize     .bind( this ) );
-		window.addEventListener( "deviceorientation", this._onOrientation.bind( this ) );
+		elem.addEventListener( "mousedown",   this._onMouseDown .bind( this ) );
+		elem.addEventListener( "mouseup",     this._onMouseUp   .bind( this ) );
+		elem.addEventListener( "mousemove",   this._onMouseMove .bind( this ) );
+		elem.addEventListener( "wheel",       this._onWheel     .bind( this ) );
+		elem.addEventListener( "touchstart",  this._onTouchStart.bind( this ) );
+		elem.addEventListener( "touchend",    this._onTouchEnd  .bind( this ) );
+		elem.addEventListener( "touchcancel", this._onTouchEnd  .bind( this ) );
+		elem.addEventListener( "touchmove",   this._onTouchMove .bind( this ) );
+		addEventListener( "resize",            this._onResize   .bind( this ) );
+		addEventListener( "deviceorientation", this._onOrientation.bind( this ) );
+		this.update( false );
+	}
+
+	update( fast ) {
+		if( !fast ) {
+			this._renderer.resize();
+		}
+
+		const rot = zuho.Matrix.mul( 3,
+			zuho.Matrix.rotation( 3, 1, 2, this._theta ),
+			zuho.Matrix.rotation( 3, 0, 1, this._phi   )
+		);
+		this._renderer.setCamera( rot, this._scale );
+		this._renderer.render( fast );
+	}
+
+	_updateDelayed() {
+		clearTimeout( this._timer );
+		this.update( true );
+		this._timer = setTimeout( this._onTimer.bind( this ), 250 );
+	}
+
+	_touchVariance( ev ) {
+		if( ev.touches.length < 2 ) {
+			return null;
+		}
+
+		let xs = 0.0;
+		let ys = 0.0;
+		for( let t of ev.touches ) {
+			xs += t.screenX;
+			ys += t.screenY;
+		}
+		const xb = xs / ev.touches.length;
+		const yb = ys / ev.touches.length;
+
+		let s2 = 0.0;
+		for( let t of ev.touches ) {
+			s2 += (t.screenX - xb) * (t.screenX - xb) + (t.screenY - yb) * (t.screenY - yb);
+		}
+		return s2 / (ev.touches.length - 1);
+	}
+
+	_onTimer( ev ) {
 		this.update( false );
 	}
 
@@ -412,12 +461,11 @@ zuho.Handler = class {
 		const dx = ev.clientX - this._mousePos[0];
 		const dy = ev.clientY - this._mousePos[1];
 		if( ev.shiftKey ) {
-			this._logScale -= unit * (dx + dy);
+			this._scale *= Math.exp( unit * (dx + dy) );
 		}
 		else {
-			const scale = Math.exp( this._logScale ) * unit;
-			this._phi   -= scale * dx;
-			this._theta -= scale * dy;
+			this._phi   -= (this._scale * unit) * dx;
+			this._theta -= (this._scale * unit) * dy;
 		}
 		this._mousePos = [ ev.clientX, ev.clientY ];
 		this.update( true );
@@ -425,22 +473,36 @@ zuho.Handler = class {
 	}
 
 	_onWheel( ev ) {
-		if( this._timer !== null ) {
-			window.clearTimeout( this._timer );
-			this._timer = null;
-		}
-		this._logScale += (
+		this._scale *= Math.exp(
 			ev.deltaY < 0.0 ? +0.1 :
 			ev.deltaY > 0.0 ? -0.1 :
 			                   0.0
 		);
-		this.update( true );
-		this._timer = window.setTimeout( this._onTimer.bind( this ), 250 );
+		this._updateDelayed();
 		ev.preventDefault();
 	}
 
-	_onTimer( ev ) {
-		this.update( false );
+	_onTouchStart( ev ) {
+		this._touchVar = this._touchVariance( ev );
+		ev.preventDefault();
+	}
+
+	_onTouchEnd( ev ) {
+		this._touchVar = this._touchVariance( ev );
+		if( this._touchVar === null ) {
+			this.update( false );
+		}
+		ev.preventDefault();
+	}
+
+	_onTouchMove( ev ) {
+		const variance = this._touchVariance( ev );
+		if( this._touchVar !== null && variance !== null ) {
+			this._scale *= Math.sqrt( this._touchVar / variance );
+			this.update( true );
+		}
+		this._touchVar = variance;
+		ev.preventDefault();
 	}
 
 	_onResize( ev ) {
@@ -456,23 +518,8 @@ zuho.Handler = class {
 		if( screen.orientation.angle !== undefined ) {
 			rot = zuho.Matrix.mul( 3, zuho.Matrix.rotation( 3, 0, 1, (Math.PI / 180.0) * screen.orientation.angle ), rot );
 		}
-		const scale = Math.exp( this._logScale );
-		this._renderer.setCamera( rot, scale );
+		this._renderer.setCamera( rot, this._scale );
 		this._renderer.render( true );
-	}
-
-	update( fast ) {
-		if( !fast ) {
-			this._renderer.resize();
-		}
-
-		const rot = zuho.Matrix.mul( 3,
-			zuho.Matrix.rotation( 3, 1, 2, this._theta ),
-			zuho.Matrix.rotation( 3, 0, 1, this._phi   )
-		);
-		const scale = Math.exp( this._logScale );
-		this._renderer.setCamera( rot, scale );
-		this._renderer.render( fast );
 	}
 };
 
@@ -561,7 +608,7 @@ zuho.stylesheet = String.raw`
 	}
 `;
 
-window.addEventListener( "DOMContentLoaded", function( ev ) {
+addEventListener( "DOMContentLoaded", function( ev ) {
 	const style = document.createElement( "style" );
 	style.textContent = zuho.stylesheet;
 	document.head.insertBefore( style, document.head.firstChild );
@@ -573,8 +620,8 @@ window.addEventListener( "DOMContentLoaded", function( ev ) {
 			const canvas = div.appendChild( document.createElement( "canvas" ) );
 			const renderer = new zuho.Renderer( canvas );
 			renderer.setImage( img );
-			new zuho.Handler( div, renderer );
-			new zuho.Menu   ( div, renderer );
+			new zuho.Handler( canvas, renderer );
+			new zuho.Menu   ( div,    renderer );
 		};
 		img.src = div.dataset.src;
 	}
