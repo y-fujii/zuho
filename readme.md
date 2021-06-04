@@ -26,6 +26,7 @@
 	- Eckert IV
 	- It is also very easy to add custom projection functions.  See
 	  "Mapping" in "zuho.js".
+- Support multitouch.
 - No dependencies, small, and easy to use.
 	- Requires only "zuho.js", which is less than 600 SLoC.
 
@@ -41,8 +42,8 @@ zuho.js is a tiny library.
 
 ## Manipulation
 
-- Rotate : Left drag.
-- Zoom : Wheel or Shift + mouse left drag.
+- Rotate : Drag.
+- Zoom : Wheel, shift key + drag, or pinch gesture.
 
 ## TODO:
 

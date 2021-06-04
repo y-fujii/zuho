@@ -17,36 +17,30 @@
 				height: 100%;
 				background: #000000;
 			}
-			menu, menu > menuitem {
+			#mapping-menu {
 				display: block;
-			}
-			menu {
 				position: fixed;
 				right: 0;
 				top:   0;
 				font: x-small/1.0 sans-serif;
 				color: #ffffff;
 				background: #303030;
-				opacity: 0.25;
-				transition: opacity 1s;
+				opacity: 0.75;
 				        user-select: none;
 				-webkit-user-select: none;
 			}
-			menu:hover {
-				opacity: 0.875;
-				transition: opacity 0s;
-			}
-			menu > menuitem {
+			#mapping-menu > menuitem {
+				display: block;
 				padding: 0.5em 1.0em;
 			}
-			menu > menuitem:hover {
+			#mapping-menu > menuitem:hover {
 				background: #406080;
 			}
 		</style>
 	</head>
 	<body>
 		<x-zuho src="src.jpg" mapping="azConformal"></x-zuho>
-		<menu>
+		<menu id="mapping-menu">
 			<menuitem data-type="azPerspective">Azimuthal | Perspective</menuitem>
 			<menuitem data-type="azConformal">Azimuthal | Conformal</menuitem>
 			<menuitem data-type="azEquidistant">Azimuthal | Equidistant</menuitem>
@@ -62,7 +56,7 @@
 			<menuitem data-type="eckert4">Eckert IV</menuitem>
 			<script>
 				const zuhoElement = document.querySelector( "x-zuho" );
-				for( const e of document.querySelectorAll( "menuitem" ) ) {
+					for( const e of document.querySelectorAll( "#mapping-menu > menuitem" ) ) {
 					e.onclick = ev => {
 						zuhoElement.mapping = e.dataset.type;
 					};
