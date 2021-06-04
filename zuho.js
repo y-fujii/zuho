@@ -4,9 +4,6 @@
 if( NodeList.prototype[Symbol.iterator] === undefined ) {
 	NodeList.prototype[Symbol.iterator] = Array.prototype[Symbol.iterator];
 }
-if( Element.prototype.setCapture === undefined ) {
-	Element.prototype.setCapture = function() {};
-}
 if( Element.prototype.requestFullscreen === undefined ) {
 	Element.prototype.requestFullscreen =
 		Element.prototype.mozRequestFullScreen ||
@@ -373,22 +370,18 @@ zuho.Handler = class {
 	constructor( elem, renderer ) {
 		this._element  = elem;
 		this._renderer = renderer;
-		this._mousePos = null;
-		this._touchVar = null;
+		this._pointers = new Map();
 		this._theta    = Math.PI / -2.0;
 		this._phi      = 0.0;
 		this._scale    = 1.0;
 		this._timer    = null;
-		elem.addEventListener( "mousedown",   this._onMouseDown .bind( this ) );
-		elem.addEventListener( "mouseup",     this._onMouseUp   .bind( this ) );
-		elem.addEventListener( "mousemove",   this._onMouseMove .bind( this ) );
-		elem.addEventListener( "wheel",       this._onWheel     .bind( this ) );
-		elem.addEventListener( "touchstart",  this._onTouchStart.bind( this ) );
-		elem.addEventListener( "touchend",    this._onTouchEnd  .bind( this ) );
-		elem.addEventListener( "touchcancel", this._onTouchEnd  .bind( this ) );
-		elem.addEventListener( "touchmove",   this._onTouchMove .bind( this ) );
-		addEventListener( "resize",            this._onResize   .bind( this ) );
-		addEventListener( "deviceorientation", this._onOrientation.bind( this ) );
+		elem.style.touchAction = "none"; // XXX
+		elem.addEventListener( "pointerdown",   this._onPointerDown.bind( this ) );
+		elem.addEventListener( "pointerup",     this._onPointerUp  .bind( this ) );
+		elem.addEventListener( "pointercancel", this._onPointerUp  .bind( this ) );
+		elem.addEventListener( "pointermove",   this._onPointerMove.bind( this ) );
+		elem.addEventListener( "wheel",         this._onWheel      .bind( this ) );
+		addEventListener( "resize", this._onResize.bind( this ) );
 		this.update( false );
 	}
 
@@ -411,65 +404,79 @@ zuho.Handler = class {
 		this._timer = setTimeout( this._onTimer.bind( this ), 250 );
 	}
 
-	_touchVariance( ev ) {
-		if( ev.touches.length < 2 ) {
-			return null;
+	_pointerInfo() {
+		const n = this._pointers.size;
+		if( n < 1 ) {
+			return { x: null, y: null, v: null };
 		}
 
+		// calculate mean.
 		let xs = 0.0;
 		let ys = 0.0;
-		for( let t of ev.touches ) {
-			xs += t.screenX;
-			ys += t.screenY;
+		for( const ev of this._pointers.values() ) {
+			xs += ev.screenX;
+			ys += ev.screenY;
 		}
-		const xb = xs / ev.touches.length;
-		const yb = ys / ev.touches.length;
+		const xm = xs / n;
+		const ym = ys / n;
 
-		let s2 = 0.0;
-		for( let t of ev.touches ) {
-			s2 += (t.screenX - xb) * (t.screenX - xb) + (t.screenY - yb) * (t.screenY - yb);
+		if( n < 2 ) {
+			return { x: xm, y: ym, v: null };
 		}
-		return s2 / (ev.touches.length - 1);
+
+		// calculate variance.
+		let s2 = 0.0;
+		for( const ev of this._pointers.values() ) {
+			s2 += (ev.screenX - xm) * (ev.screenX - xm) + (ev.screenY - ym) * (ev.screenY - ym);
+		}
+		const v = s2 / (n - 1);
+
+		return { x: xm, y: ym, v: v };
 	}
 
 	_onTimer( ev ) {
 		this.update( false );
 	}
 
-	_onMouseDown( ev ) {
-		if( ev.button != 0 ) {
-			return;
-		}
-		this._mousePos = [ ev.clientX, ev.clientY ];
-		ev.target.setCapture();
-		ev.preventDefault();
+	_onPointerDown( ev ) {
+		this._element.setPointerCapture( ev.pointerId );
+		this._pointers.set( ev.pointerId, ev );
 	}
 
-	_onMouseUp( ev ) {
-		this._mousePos = null;
+	_onPointerUp( ev ) {
+		this._element.releasePointerCapture( ev.pointerId );
+		this._pointers.delete( ev.pointerId );
 		this.update( false );
-		ev.preventDefault();
 	}
 
-	_onMouseMove( ev ) {
-		if( this._mousePos === null ) {
+	_onPointerMove( ev ) {
+		const prev = this._pointerInfo();
+		if( this._pointers.has( ev.pointerId ) ) {
+			this._pointers.set( ev.pointerId, ev );
+		}
+		const curr = this._pointerInfo();
+
+		if( prev.x === null || curr.x === null ) {
 			return;
 		}
 
 		const rect = this._element.getBoundingClientRect();
 		const unit = 2.0 / Math.sqrt( rect.width * rect.height );
-		const dx = ev.clientX - this._mousePos[0];
-		const dy = ev.clientY - this._mousePos[1];
+		const dx = unit * (curr.x - prev.x);
+		const dy = unit * (curr.y - prev.y);
 		if( ev.shiftKey ) {
-			this._scale *= Math.exp( unit * (dx + dy) );
+			this._scale *= Math.exp( dx + dy );
 		}
 		else {
-			this._phi   -= (this._scale * unit) * dx;
-			this._theta -= (this._scale * unit) * dy;
+			this._phi   -= this._scale * dx;
+			this._theta -= this._scale * dy;
 		}
-		this._mousePos = [ ev.clientX, ev.clientY ];
+
+		if( prev.v !== null && curr.v !== null ) {
+			this._scale *= Math.sqrt( prev.v / curr.v );
+		}
+
 		this.update( true );
-		ev.preventDefault();
 	}
 
 	_onWheel( ev ) {
@@ -479,59 +486,21 @@ zuho.Handler = class {
 			                   0.0
 		);
 		this._updateDelayed();
-		ev.preventDefault();
-	}
-
-	_onTouchStart( ev ) {
-		this._touchVar = this._touchVariance( ev );
-		ev.preventDefault();
-	}
-
-	_onTouchEnd( ev ) {
-		this._touchVar = this._touchVariance( ev );
-		if( this._touchVar === null ) {
-			this.update( false );
-		}
-		ev.preventDefault();
-	}
-
-	_onTouchMove( ev ) {
-		const variance = this._touchVariance( ev );
-		if( this._touchVar !== null && variance !== null ) {
-			this._scale *= Math.sqrt( this._touchVar / variance );
-			this.update( true );
-		}
-		this._touchVar = variance;
-		ev.preventDefault();
 	}
 
 	_onResize( ev ) {
 		this.update( false );
-		screen.orientation.lock( "landscape-primary" );
-	}
-
-	_onOrientation( ev ) {
-		let rot = zuho.Matrix.identity( 3 );
-		rot = zuho.Matrix.mul( 3, zuho.Matrix.rotation( 3, 1, 0, (Math.PI / 180.0) * ev.alpha ), rot );
-		rot = zuho.Matrix.mul( 3, zuho.Matrix.rotation( 3, 2, 1, (Math.PI / 180.0) * ev.beta  ), rot );
-		rot = zuho.Matrix.mul( 3, zuho.Matrix.rotation( 3, 0, 2, (Math.PI / 180.0) * ev.gamma ), rot );
-		if( screen.orientation.angle !== undefined ) {
-			rot = zuho.Matrix.mul( 3, zuho.Matrix.rotation( 3, 0, 1, (Math.PI / 180.0) * screen.orientation.angle ), rot );
-		}
-		this._renderer.setCamera( rot, this._scale );
-		this._renderer.render( true );
 	}
 };
 
 zuho.Menu = class {
 	constructor( elem, renderer ) {
 		const menu = document.createRange().createContextualFragment( zuho.Menu.template );
-		for( let e of menu.querySelectorAll( ".mapping" ) ) {
+		for( const e of menu.querySelectorAll( ".mapping" ) ) {
 			const type = e.dataset.type;
 			e.onclick = function( ev ) {
 				renderer.setMapping( zuho.Mapping[type] );
 				renderer.render( false );
-				ev.preventDefault();
 			};
 		}
 		const e = menu.querySelector( ".fullscreen" );
@@ -613,8 +582,7 @@ addEventListener( "DOMContentLoaded", function( ev ) {
 	style.textContent = zuho.stylesheet;
 	document.head.insertBefore( style, document.head.firstChild );
 
-	for( let _div of document.querySelectorAll( "div.equirectangular" ) ) {
-		const div = _div;
+	for( const div of document.querySelectorAll( "div.equirectangular" ) ) {
 		const img = new Image();
 		img.onload = function() {
 			const canvas = div.appendChild( document.createElement( "canvas" ) );
