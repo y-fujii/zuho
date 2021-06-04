@@ -9,14 +9,65 @@
 			* {
 				margin:  0;
 				padding: 0;
+				border: none;
 			}
-			.equirectangular {
+			x-zuho {
 				position: fixed;
 				width:  100%;
 				height: 100%;
 				background: #000000;
 			}
+			menu, menu > menuitem {
+				display: block;
+			}
+			menu {
+				position: fixed;
+				right: 0;
+				top:   0;
+				font: x-small/1.0 sans-serif;
+				color: #ffffff;
+				background: #303030;
+				opacity: 0.25;
+				transition: opacity 1s;
+				        user-select: none;
+				-webkit-user-select: none;
+			}
+			menu:hover {
+				opacity: 0.875;
+				transition: opacity 0s;
+			}
+			menu > menuitem {
+				padding: 0.5em 1.0em;
+			}
+			menu > menuitem:hover {
+				background: #406080;
+			}
 		</style>
 	</head>
-	<body><div class="equirectangular" data-src="src.png"></div></body>
+	<body>
+		<x-zuho src="src.jpg" mapping="azConformal"></x-zuho>
+		<menu>
+			<menuitem data-type="azPerspective">Azimuthal | Perspective</menuitem>
+			<menuitem data-type="azConformal">Azimuthal | Conformal</menuitem>
+			<menuitem data-type="azEquidistant">Azimuthal | Equidistant</menuitem>
+			<menuitem data-type="azEquiarea">Azimuthal | Equiarea</menuitem>
+			<menuitem data-type="azOrthogonal">Azimuthal | Orthogonal</menuitem>
+			<menuitem data-type="azReflect">Azimuthal | Reflect</menuitem>
+			<menuitem data-type="cyPerspective">Cylindrical | Perspective</menuitem>
+			<menuitem data-type="cyConformal">Cylindrical | Conformal</menuitem>
+			<menuitem data-type="cyEquidistant">Cylindrical | Equidistant</menuitem>
+			<menuitem data-type="cyEquiarea">Cylindrical | Equiarea</menuitem>
+			<menuitem data-type="mollweide">Mollweide</menuitem>
+			<menuitem data-type="hammer">Hammer</menuitem>
+			<menuitem data-type="eckert4">Eckert IV</menuitem>
+			<script>
+				const zuhoElement = document.querySelector( "x-zuho" );
+				for( const e of document.querySelectorAll( "menuitem" ) ) {
+					e.onclick = ev => {
+						zuhoElement.mapping = e.dataset.type;
+					};
+				}
+			</script>
+		</menu>
+	</body>
 </html>

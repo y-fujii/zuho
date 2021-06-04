@@ -1,16 +1,6 @@
 // (c) Yasuhiro Fujii <y-fujii at mimosa-pudica.net>, under MIT License.
 "use strict";
 
-if( NodeList.prototype[Symbol.iterator] === undefined ) {
-	NodeList.prototype[Symbol.iterator] = Array.prototype[Symbol.iterator];
-}
-if( Element.prototype.requestFullscreen === undefined ) {
-	Element.prototype.requestFullscreen =
-		Element.prototype.mozRequestFullScreen ||
-		Element.prototype.webkitRequestFullscreen ||
-		Element.prototype.msRequestFullscreen;
-}
-
 const zuho = {};
 
 zuho.Matrix = class {
@@ -77,7 +67,7 @@ zuho.Renderer = class {
 		gl.attachShader( this._progFast, this._fragShaderFast );
 		gl.attachShader( this._progSlow, this._vertShader );
 		gl.attachShader( this._progSlow, this._fragShaderSlow );
-		this.setMapping( Object.values( zuho.Mapping )[0] );
+		this.setMapping( zuho.Mapping.azConformal );
 		this.setCamera( zuho.Matrix.identity( 3 ), 1.0 );
 
 		this._vbo = gl.createBuffer();
@@ -493,104 +483,56 @@ zuho.Handler = class {
 	}
 };
 
-zuho.Menu = class {
-	constructor( elem, renderer ) {
-		const menu = document.createRange().createContextualFragment( zuho.Menu.template );
-		for( const e of menu.querySelectorAll( ".mapping" ) ) {
-			const type = e.dataset.type;
-			e.onclick = function( ev ) {
-				renderer.setMapping( zuho.Mapping[type] );
-				renderer.render( false );
-			};
+zuho.Element = class extends HTMLElement {
+	static get observedAttributes() {
+		return [ "src", "mapping" ];
+	}
+
+	constructor() {
+		super();
+		const shadow = this.attachShadow( { mode: "open" } );
+		const canvas = shadow.appendChild( document.createElement( "canvas" ) );
+		canvas.style.display = "block";
+		canvas.style.width   = "100%";
+		canvas.style.height  = "100%";
+		this._renderer = new zuho.Renderer( canvas );
+		this._handler  = new zuho.Handler( canvas, this._renderer );
+	}
+
+	attributeChangedCallback( key, oldVal, newVal ) {
+		switch( key ) {
+			case "src": {
+				const img = new Image();
+				img.onload = () => {
+					this._renderer.setImage( img );
+					this._renderer.render( false );
+				};
+				img.src = newVal;
+				break;
+			}
+			case "mapping": {
+				this._renderer.setMapping( zuho.Mapping[newVal] );
+				this._renderer.render( false );
+				break;
+			}
 		}
-		const e = menu.querySelector( ".fullscreen" );
-		e.onclick = function( ev ) {
-			elem.requestFullscreen();
-		};
-		elem.appendChild( menu );
 	}
-};
 
-zuho.Menu.template = String.raw`
-	<menu>
-		<menuitem class="mapping" data-type="azPerspective">Azimuthal | Perspective</menuitem>
-		<menuitem class="mapping" data-type="azConformal">Azimuthal | Conformal</menuitem>
-		<menuitem class="mapping" data-type="azEquidistant">Azimuthal | Equidistant</menuitem>
-		<menuitem class="mapping" data-type="azEquiarea">Azimuthal | Equiarea</menuitem>
-		<menuitem class="mapping" data-type="azOrthogonal">Azimuthal | Orthogonal</menuitem>
-		<menuitem class="mapping" data-type="azReflect">Azimuthal | Reflect</menuitem>
-		<menuitem class="mapping" data-type="cyPerspective">Cylindrical | Perspective</menuitem>
-		<menuitem class="mapping" data-type="cyConformal">Cylindrical | Conformal</menuitem>
-		<menuitem class="mapping" data-type="cyEquidistant">Cylindrical | Equidistant</menuitem>
-		<menuitem class="mapping" data-type="cyEquiarea">Cylindrical | Equiarea</menuitem>
-		<menuitem class="mapping" data-type="mollweide">Mollweide</menuitem>
-		<menuitem class="mapping" data-type="hammer">Hammer</menuitem>
-		<menuitem class="mapping" data-type="eckert4">Eckert IV</menuitem>
-		<hr>
-		<menuitem class="fullscreen">Fullscreen</menuitem>
-	</menu>
-`;
+	get src() {
+		return this.getAttribute( "src" );
+	}
 
-zuho.stylesheet = String.raw`
-	.equirectangular * {
-		padding: 0;
-		margin:  0;
-		border: none;
-		        user-select: none;
-		   -moz-user-select: none;
-		-webkit-user-select: none;
-		    -ms-user-select: none;
+	set src( e ) {
+		this.setAttribute( "src", e );
 	}
-	.equirectangular canvas, .equirectangular menu, .equirectangular menu menuitem {
-		display: block;
-	}
-	.equirectangular canvas {
-		width:  100%;
-		height: 100%;
-	}
-	.equirectangular menu {
-		position: absolute;
-		right: 0;
-		top:   0;
-		z-index: 1;
-		font: x-small/1.0 sans-serif;
-		color: #ffffff;
-		background: #303030;
-		opacity: 0.25;
-		transition: opacity 1s;
-	}
-	.equirectangular menu:hover {
-		opacity: 0.875;
-		transition: opacity 0s;
-	}
-	.equirectangular menu hr {
-		height: 1px;
-		margin: 0.5em 1.0em;
-		background: #ffffff;
-	}
-	.equirectangular menu menuitem {
-		padding: 0.5em 1.0em;
 
+	get mapping() {
+		return this.getAttribute( "mapping" );
 	}
-	.equirectangular menu menuitem:hover {
-		background: #406080;
-	}
-`;
 
-addEventListener( "DOMContentLoaded", function( ev ) {
-	const style = document.createElement( "style" );
-	style.textContent = zuho.stylesheet;
-	document.head.insertBefore( style, document.head.firstChild );
-
-	for( const div of document.querySelectorAll( "div.equirectangular" ) ) {
-		const img = new Image();
-		img.onload = function() {
-			const canvas = div.appendChild( document.createElement( "canvas" ) );
-			const renderer = new zuho.Renderer( canvas );
-			renderer.setImage( img );
-			new zuho.Handler( canvas, renderer );
-			new zuho.Menu   ( div,    renderer );
-		};
-		img.src = div.dataset.src;
+	set mapping( e ) {
+		this.setAttribute( "mapping", e );
 	}
-} );
+}
+
+customElements.define( "x-zuho", zuho.Element );

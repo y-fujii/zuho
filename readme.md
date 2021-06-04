@@ -1,11 +1,15 @@
 # zuho.js - WebGL equirectangular image viewer
 
+## Demo
+
+[Demo](https://mimosa-pudica.net/zuho/)
+
 ## Features
 
 - Rendering quality.
 	- Use QMC sampling to handle highly nonlinear anisotropy.
 	- Pseudo gamma-corrected calculation.
-	- Use two shaders (better speed vs better quality) adaptively.
+	- Switch the two shaders (speed vs quality) adaptively.
 - Support many projection methods.
 	- Azimuthal | Perspective
 	- Azimuthal | Conformal
@@ -22,15 +26,15 @@
 	- Eckert IV
 	- It is also very easy to add custom projection functions.  See
 	  "Mapping" in "zuho.js".
-- No dependencies, small, easy to use.
-	- Requires only "zuho.js", which is less than 600 SLOC.
+- No dependencies, small, and easy to use.
+	- Requires only "zuho.js", which is less than 600 SLoC.
 
 ## Usage
 
 	<script defer src="zuho.js"></script>
-	<div class="equirectangular" data-src="your_favorite_image" style="width: 720px; height: 480px"></div>
+	<x-zuho src="src.jpg" mapping="azConformal" style="width: 720px; height: 480px"></x-zuho>
 
-See "index.html" for example and "zuho.js" for detailed usage.
+See "index.html" for example and "zuho.js" for a detailed usage.
 
 Although JS API is not stable and not documented yet, it is easy to use because
 zuho.js is a tiny library.
@@ -42,8 +46,8 @@ zuho.js is a tiny library.
 
 ## TODO:
 
+- Custom default rotation.
 - 3 DoF rotation with two-finger operations.
-- Use Web Components.
 - Read XMP metadata.
 
 ## Tips
