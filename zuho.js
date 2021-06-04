@@ -381,7 +381,7 @@ zuho.Handler = class {
 		elem.addEventListener( "pointercancel", this._onPointerUp  .bind( this ) );
 		elem.addEventListener( "pointermove",   this._onPointerMove.bind( this ) );
 		elem.addEventListener( "wheel",         this._onWheel      .bind( this ) );
-		addEventListener( "resize", this._onResize.bind( this ) );
+		new ResizeObserver( this._onResize.bind( this ) ).observe( elem );
 		this.update( false );
 	}
 
@@ -488,7 +488,7 @@ zuho.Handler = class {
 		this._updateDelayed();
 	}
 
-	_onResize( ev ) {
+	_onResize( entries ) {
 		this.update( false );
 	}
 };
