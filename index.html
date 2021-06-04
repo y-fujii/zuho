@@ -56,7 +56,7 @@
 			<menuitem data-type="eckert4">Eckert IV</menuitem>
 			<script>
 				const zuhoElement = document.querySelector( "x-zuho" );
-					for( const e of document.querySelectorAll( "#mapping-menu > menuitem" ) ) {
+				for( const e of document.querySelectorAll( "#mapping-menu > menuitem" ) ) {
 					e.onclick = ev => {
 						zuhoElement.mapping = e.dataset.type;
 					};
