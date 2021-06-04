@@ -31,7 +31,7 @@
 
 ## Usage
 
-	<script defer src="zuho.js"></script>
+	<script type="module" src="zuho.js"></script>
 	<x-zuho src="src.jpg" mapping="azConformal" style="width: 720px; height: 480px"></x-zuho>
 
 See "index.html" for example and "zuho.js" for a detailed usage.

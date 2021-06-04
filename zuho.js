@@ -1,9 +1,6 @@
 // (c) Yasuhiro Fujii <y-fujii at mimosa-pudica.net>, under MIT License.
-"use strict";
 
-const zuho = {};
-
-zuho.Matrix = class {
+export class Matrix {
 	static mul( n, x, y ) {
 		console.assert( x.length == n * n && y.length == n * n );
 		const z = new Float32Array( n * n );
@@ -41,7 +38,7 @@ zuho.Matrix = class {
 	}
 };
 
-zuho.Renderer = class {
+export class Renderer {
 	constructor( canvas ) {
 		const params = {
 			alpha: true,
@@ -62,17 +59,17 @@ zuho.Renderer = class {
 		this._fragShaderSlow = gl.createShader( gl.FRAGMENT_SHADER );
 		this._progFast       = gl.createProgram();
 		this._progSlow       = gl.createProgram();
-		this._compile( this._vertShader, zuho.Renderer._vertSource );
+		this._compile( this._vertShader, Renderer._vertSource );
 		gl.attachShader( this._progFast, this._vertShader );
 		gl.attachShader( this._progFast, this._fragShaderFast );
 		gl.attachShader( this._progSlow, this._vertShader );
 		gl.attachShader( this._progSlow, this._fragShaderSlow );
-		this.setMapping( zuho.Mapping.azConformal );
-		this.setCamera( zuho.Matrix.identity( 3 ), 1.0 );
+		this.setMapping( Mapping.azConformal );
+		this.setCamera( Matrix.identity( 3 ), 1.0 );
 
 		this._vbo = gl.createBuffer();
 		gl.bindBuffer( gl.ARRAY_BUFFER, this._vbo );
-		gl.bufferData( gl.ARRAY_BUFFER, zuho.Renderer._vertices, gl.STATIC_DRAW );
+		gl.bufferData( gl.ARRAY_BUFFER, Renderer._vertices, gl.STATIC_DRAW );
 
 		this._tex = gl.createTexture();
 		gl.bindTexture( gl.TEXTURE_2D, this._tex );
@@ -93,8 +90,8 @@ zuho.Renderer = class {
 	}
 
 	setMapping( code ) {
-		this._compile( this._fragShaderFast, zuho.Renderer._fragSourceCommon + zuho.Renderer._fragSourceFast + code );
-		this._compile( this._fragShaderSlow, zuho.Renderer._fragSourceCommon + zuho.Renderer._fragSourceSlow + code );
+		this._compile( this._fragShaderFast, Renderer._fragSourceCommon + Renderer._fragSourceFast + code );
+		this._compile( this._fragShaderSlow, Renderer._fragSourceCommon + Renderer._fragSourceSlow + code );
 		this._link( this._progFast );
 		this._link( this._progSlow );
 	}
@@ -160,11 +157,11 @@ zuho.Renderer = class {
 	}
 };
 
-zuho.Renderer._vertices = new Float32Array( [
+Renderer._vertices = new Float32Array( [
 	-1.0, -1.0, +1.0, -1.0, -1.0, +1.0, +1.0, +1.0,
 ] );
 
-zuho.Renderer._fragSourceCommon = String.raw`
+Renderer._fragSourceCommon = String.raw`
 	#ifdef GL_FRAGMENT_PRECISION_HIGH
 		precision highp   float;
 	#else
@@ -194,13 +191,13 @@ zuho.Renderer._fragSourceCommon = String.raw`
 	}
 `;
 
-zuho.Renderer._fragSourceFast = String.raw`
+Renderer._fragSourceFast = String.raw`
 	void main() {
 		gl_FragColor = sample( 0.0, 0.0 );
 	}
 `;
 
-zuho.Renderer._fragSourceSlow = String.raw`
+Renderer._fragSourceSlow = String.raw`
 	vec4 sampleSq( float dx, float dy ) {
 		vec4 s = sample( dx, dy );
 		return vec4( s.xyz * s.xyz, s.w );
@@ -230,7 +227,7 @@ zuho.Renderer._fragSourceSlow = String.raw`
 	}
 `;
 
-zuho.Renderer._vertSource = String.raw`
+Renderer._vertSource = String.raw`
 	uniform   vec2 uScale;
 	attribute vec2 aPos;
 	varying   vec2 vPos;
@@ -241,7 +238,7 @@ zuho.Renderer._vertSource = String.raw`
 	}
 `;
 
-zuho.Mapping = {
+export let Mapping = {
 	azPerspective: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			q = vec3( p, -1.0 );
@@ -356,7 +353,7 @@ zuho.Mapping = {
 	`,
 };
 
-zuho.Handler = class {
+export class Handler {
 	constructor( elem, renderer ) {
 		this._element  = elem;
 		this._renderer = renderer;
@@ -380,9 +377,9 @@ zuho.Handler = class {
 			this._renderer.resize();
 		}
 
-		const rot = zuho.Matrix.mul( 3,
-			zuho.Matrix.rotation( 3, 1, 2, this._theta ),
-			zuho.Matrix.rotation( 3, 0, 1, this._phi   )
+		const rot = Matrix.mul( 3,
+			Matrix.rotation( 3, 1, 2, this._theta ),
+			Matrix.rotation( 3, 0, 1, this._phi   )
 		);
 		this._renderer.setCamera( rot, this._scale );
 		this._renderer.render( fast );
@@ -483,7 +480,7 @@ zuho.Handler = class {
 	}
 };
 
-zuho.Element = class extends HTMLElement {
+export class Element extends HTMLElement {
 	static get observedAttributes() {
 		return [ "src", "mapping" ];
 	}
@@ -495,8 +492,8 @@ zuho.Element = class extends HTMLElement {
 		canvas.style.display = "block";
 		canvas.style.width   = "100%";
 		canvas.style.height  = "100%";
-		this._renderer = new zuho.Renderer( canvas );
-		this._handler  = new zuho.Handler( canvas, this._renderer );
+		this._renderer = new Renderer( canvas );
+		this._handler  = new Handler( canvas, this._renderer );
 	}
 
 	attributeChangedCallback( key, oldVal, newVal ) {
@@ -511,7 +508,7 @@ zuho.Element = class extends HTMLElement {
 				break;
 			}
 			case "mapping": {
-				this._renderer.setMapping( zuho.Mapping[newVal] );
+				this._renderer.setMapping( Mapping[newVal] );
 				this._renderer.render( false );
 				break;
 			}
@@ -535,4 +532,4 @@ zuho.Element = class extends HTMLElement {
 	}
 }
 
-customElements.define( "x-zuho", zuho.Element );
+customElements.define( "x-zuho", Element );
