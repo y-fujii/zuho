@@ -468,6 +468,7 @@ export class Handler {
 		}
 		this._scale *= Math.exp( scale * ev.deltaY );
 		this._updateDelayed();
+		ev.preventDefault();
 	}
 
 	_onResize( entries ) {
