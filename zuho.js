@@ -51,9 +51,6 @@ export class Renderer {
 			canvas.getContext( "webgl", params ) ||
 			canvas.getContext( "experimental-webgl", params );
 
-		this._canvas = canvas;
-		this.resize();
-
 		this._vertShader     = gl.createShader( gl.VERTEX_SHADER );
 		this._fragShaderFast = gl.createShader( gl.FRAGMENT_SHADER );
 		this._fragShaderSlow = gl.createShader( gl.FRAGMENT_SHADER );
@@ -101,16 +98,10 @@ export class Renderer {
 		this._scale    = scale;
 	}
 
-	resize() {
-		const rect = this._canvas.getBoundingClientRect();
-		this._canvas.width  = rect.width  * devicePixelRatio;
-		this._canvas.height = rect.height * devicePixelRatio;
-		this._gl.viewport( 0.0, 0.0, this._canvas.width, this._canvas.height );
-	}
-
 	render( fast ) {
 		const gl = this._gl;
 
+		gl.viewport( 0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight );
 		gl.disable( gl.BLEND );
 
 		const prog = fast ? this._progFast : this._progSlow;
@@ -369,14 +360,10 @@ export class Handler {
 		elem.addEventListener( "pointermove",   this._onPointerMove.bind( this ) );
 		elem.addEventListener( "wheel",         this._onWheel      .bind( this ) );
 		new ResizeObserver( this._onResize.bind( this ) ).observe( elem );
-		this.update( false );
+		this._onResize( null );
 	}
 
 	update( fast ) {
-		if( !fast ) {
-			this._renderer.resize();
-		}
-
 		const rot = Matrix.mul( 3,
 			Matrix.rotation( 3, 1, 2, this._theta ),
 			Matrix.rotation( 3, 0, 1, this._phi   )
@@ -476,6 +463,9 @@ export class Handler {
 	}
 
 	_onResize( entries ) {
+		const rect = this._element.getBoundingClientRect();
+		this._element.width  = rect.width  * devicePixelRatio;
+		this._element.height = rect.height * devicePixelRatio;
 		this.update( false );
 	}
 };
@@ -515,21 +505,11 @@ export class Element extends HTMLElement {
 		}
 	}
 
-	get src() {
-		return this.getAttribute( "src" );
-	}
+	get src    () { return this.getAttribute( "src"     ); }
+	get mapping() { return this.getAttribute( "mapping" ); }
 
-	set src( e ) {
-		this.setAttribute( "src", e );
-	}
-
-	get mapping() {
-		return this.getAttribute( "mapping" );
-	}
-
-	set mapping( e ) {
-		this.setAttribute( "mapping", e );
-	}
+	set src    ( e ) { this.setAttribute( "src"    , e ); }
+	set mapping( e ) { this.setAttribute( "mapping", e ); }
 }
 
 customElements.define( "x-zuho", Element );
