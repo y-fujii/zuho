@@ -1,6 +1,10 @@
 // (c) Yasuhiro Fujii <y-fujii at mimosa-pudica.net>, under MIT License.
 
-export class Matrix {
+function square( x ) {
+	return x * x;
+}
+
+class Matrix {
 	static mul( n, x, y ) {
 		console.assert( x.length == n * n && y.length == n * n );
 		const z = new Float32Array( n * n );
@@ -229,7 +233,7 @@ Renderer._vertSource = String.raw`
 	}
 `;
 
-export let Mapping = {
+export const Mapping = {
 	azPerspective: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
 			q = vec3( p, -1.0 );
@@ -388,8 +392,8 @@ export class Handler {
 		let xs = 0.0;
 		let ys = 0.0;
 		for( const ev of this._pointers.values() ) {
-			xs += ev.screenX;
-			ys += ev.screenY;
+			xs += ev.clientX;
+			ys += ev.clientY;
 		}
 		const xm = xs / n;
 		const ym = ys / n;
@@ -401,7 +405,7 @@ export class Handler {
 		// calculate variance.
 		let s2 = 0.0;
 		for( const ev of this._pointers.values() ) {
-			s2 += (ev.screenX - xm) * (ev.screenX - xm) + (ev.screenY - ym) * (ev.screenY - ym);
+			s2 += square( ev.clientX - xm ) + square( ev.clientY - ym );
 		}
 		const v = s2 / (n - 1);
 
@@ -435,15 +439,17 @@ export class Handler {
 		}
 
 		const rect = this._element.getBoundingClientRect();
-		const unit = 2.0 / Math.sqrt( rect.width * rect.height );
-		const dx = unit * (curr.x - prev.x);
-		const dy = unit * (curr.y - prev.y);
 		if( ev.shiftKey ) {
-			this._scale *= Math.exp( dx + dy );
+			const centerX = (rect.left + rect.right) / 2.0;
+			const centerY = (rect.top + rect.bottom) / 2.0;
+			const prevR = square( prev.x - centerX ) + square( prev.y - centerY );
+			const currR = square( curr.x - centerX ) + square( curr.y - centerY );
+			this._scale *= Math.sqrt( prevR / currR );
 		}
 		else {
-			this._phi   -= this._scale * dx;
-			this._theta -= this._scale * dy;
+			const scale = (2.0 * this._scale) / Math.sqrt( rect.width * rect.height );
+			this._phi   -= scale * (curr.x - prev.x);
+			this._theta -= scale * (curr.y - prev.y);
 		}
 
 		if( prev.v !== null && curr.v !== null ) {
@@ -455,8 +461,8 @@ export class Handler {
 
 	_onWheel( ev ) {
 		this._scale *= Math.exp(
-			ev.deltaY < 0.0 ? +0.1 :
-			ev.deltaY > 0.0 ? -0.1 :
+			ev.deltaY < 0.0 ? -0.1 :
+			ev.deltaY > 0.0 ? +0.1 :
 			                   0.0
 		);
 		this._updateDelayed();
