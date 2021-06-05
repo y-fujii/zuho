@@ -40,7 +40,7 @@ class Matrix {
 		z[j * n + j] = +cos;
 		return z;
 	}
-};
+}
 
 export class Renderer {
 	constructor( canvas ) {
@@ -150,7 +150,7 @@ export class Renderer {
 			console.log( log );
 		}
 	}
-};
+}
 
 Renderer._vertices = new Float32Array( [
 	-1.0, -1.0, +1.0, -1.0, -1.0, +1.0, +1.0, +1.0,
@@ -367,7 +367,7 @@ export class Handler {
 		this._onResize( null );
 	}
 
-	update( fast ) {
+	_update( fast ) {
 		const rot = Matrix.mul( 3,
 			Matrix.rotation( 3, 1, 2, this._theta ),
 			Matrix.rotation( 3, 0, 1, this._phi   )
@@ -378,7 +378,7 @@ export class Handler {
 
 	_updateDelayed() {
 		clearTimeout( this._timer );
-		this.update( true );
+		this._update( true );
 		this._timer = setTimeout( this._onTimer.bind( this ), 250 );
 	}
 
@@ -413,7 +413,7 @@ export class Handler {
 	}
 
 	_onTimer( ev ) {
-		this.update( false );
+		this._update( false );
 	}
 
 	_onPointerDown( ev ) {
@@ -424,7 +424,7 @@ export class Handler {
 	_onPointerUp( ev ) {
 		this._element.releasePointerCapture( ev.pointerId );
 		this._pointers.delete( ev.pointerId );
-		this.update( false );
+		this._update( false );
 	}
 
 	_onPointerMove( ev ) {
@@ -456,15 +456,17 @@ export class Handler {
 			this._scale *= Math.sqrt( prev.v / curr.v );
 		}
 
-		this.update( true );
+		this._update( true );
 	}
 
 	_onWheel( ev ) {
-		this._scale *= Math.exp(
-			ev.deltaY < 0.0 ? -0.1 :
-			ev.deltaY > 0.0 ? +0.1 :
-			                   0.0
-		);
+		let scale;
+		switch( ev.deltaMode ) {
+			case WheelEvent.DOM_DELTA_PAGE : scale = 1.0 /   1.0; break;
+			case WheelEvent.DOM_DELTA_LINE : scale = 1.0 /  30.0; break;
+			case WheelEvent.DOM_DELTA_PIXEL: scale = 1.0 / 720.0; break;
+		}
+		this._scale *= Math.exp( scale * ev.deltaY );
 		this._updateDelayed();
 	}
 
@@ -472,9 +474,9 @@ export class Handler {
 		const rect = this._element.getBoundingClientRect();
 		this._element.width  = rect.width  * devicePixelRatio;
 		this._element.height = rect.height * devicePixelRatio;
-		this.update( false );
+		this._updateDelayed();
 	}
-};
+}
 
 export class Element extends HTMLElement {
 	static get observedAttributes() {

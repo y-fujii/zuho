@@ -45,6 +45,10 @@ zuho.js is a tiny library.
 - Rotate : Drag.
 - Zoom : Wheel, shift key + drag, or pinch gesture.
 
+## Browser Support
+
+The latest Blink-based, Gecko-based, and WebKit-based browsers should be supported.
+
 ## TODO:
 
 - Custom default rotation.
