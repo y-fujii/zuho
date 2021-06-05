@@ -20,7 +20,7 @@
 	- Cylindrical | Perspective
 	- Cylindrical | Conformal
 	- Cylindrical | Equidistant
-	- Cylindrical | Equiarea
+	- Cylindrical | Equiarea (= Orthogonal)
 	- Mollweide
 	- Hammer
 	- Eckert IV

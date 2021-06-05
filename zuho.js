@@ -487,10 +487,9 @@ export class Element extends HTMLElement {
 	constructor() {
 		super();
 		const shadow = this.attachShadow( { mode: "open" } );
+		const style = shadow.appendChild( document.createElement( "style" ) );
+		style.textContent = ":host { display: block } canvas { display: block; width: 100%; height: 100% }";
 		const canvas = shadow.appendChild( document.createElement( "canvas" ) );
-		canvas.style.display = "block";
-		canvas.style.width   = "100%";
-		canvas.style.height  = "100%";
 		this._renderer = new Renderer( canvas );
 		this._handler  = new Handler( canvas, this._renderer );
 	}
