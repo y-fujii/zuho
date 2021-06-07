@@ -171,8 +171,8 @@ Renderer._fragSourceCommon = String.raw`
 
 	bool unproject( vec2, out vec3 );
 
-	vec4 sample( float dx, float dy ) {
-		vec2 p = vPos + uPxSize * vec2( dx, dy );
+	vec4 sample( vec2 dp ) {
+		vec2 p = vPos + uPxSize * dp;
 		vec3 q;
 		if( unproject( p, q ) ) {
 			vec3 dir = normalize( uRot * q );
@@ -188,35 +188,28 @@ Renderer._fragSourceCommon = String.raw`
 
 Renderer._fragSourceFast = String.raw`
 	void main() {
-		gl_FragColor = sample( 0.0, 0.0 );
+		gl_FragColor = sample( vec2( 0.0 ) );
 	}
 `;
 
 Renderer._fragSourceSlow = String.raw`
-	vec4 sampleSq( float dx, float dy ) {
-		vec4 s = sample( dx, dy );
+	vec4 ss( float dx, float dy ) {
+		vec4 s = sample( vec2( dx, dy ) );
 		return vec4( s.xyz * s.xyz, s.w );
 	}
 
 	void main() {
-		// (2, 3) halton vector sequences.
-		vec4 acc = (1.0 / 16.0) * (
-			(((sampleSq(  1.0 /  2.0 - 0.5,  1.0 /  3.0 - 0.5 ) +
-			   sampleSq(  1.0 /  4.0 - 0.5,  2.0 /  3.0 - 0.5 )) +
-			  (sampleSq(  3.0 /  4.0 - 0.5,  1.0 /  9.0 - 0.5 ) +
-			   sampleSq(  1.0 /  8.0 - 0.5,  4.0 /  9.0 - 0.5 ))) +
-			 ((sampleSq(  5.0 /  8.0 - 0.5,  7.0 /  9.0 - 0.5 ) +
-			   sampleSq(  3.0 /  8.0 - 0.5,  2.0 /  9.0 - 0.5 )) +
-			  (sampleSq(  7.0 /  8.0 - 0.5,  5.0 /  9.0 - 0.5 ) +
-			   sampleSq(  1.0 / 16.0 - 0.5,  8.0 /  9.0 - 0.5 )))) +
-			(((sampleSq(  9.0 / 16.0 - 0.5,  1.0 / 27.0 - 0.5 ) +
-			   sampleSq(  5.0 / 16.0 - 0.5, 10.0 / 27.0 - 0.5 )) +
-			  (sampleSq( 13.0 / 16.0 - 0.5, 19.0 / 27.0 - 0.5 ) +
-			   sampleSq(  3.0 / 16.0 - 0.5,  4.0 / 27.0 - 0.5 ))) +
-			 ((sampleSq( 11.0 / 16.0 - 0.5, 13.0 / 27.0 - 0.5 ) +
-			   sampleSq(  7.0 / 16.0 - 0.5, 22.0 / 27.0 - 0.5 )) +
-			  (sampleSq( 15.0 / 16.0 - 0.5,  7.0 / 27.0 - 0.5 ) +
-			   sampleSq(  1.0 / 32.0 - 0.5, 16.0 / 27.0 - 0.5 ))))
+		// sample with Hammersley set and sum pairwisely.
+		// note that the float precision may be low and the number of registers is limited to 32 on mobile GPU.
+		vec4 acc = (1.0 / 32.0) * (
+			(((ss( -0.484375, -0.484375 ) + ss( +0.015625, -0.453125 ) + ss( -0.234375, -0.421875 ) + ss( +0.265625, -0.390625 )) +
+			  (ss( -0.359375, -0.359375 ) + ss( +0.140625, -0.328125 ) + ss( -0.109375, -0.296875 ) + ss( +0.390625, -0.265625 ))) +
+			 ((ss( -0.421875, -0.234375 ) + ss( +0.078125, -0.203125 ) + ss( -0.171875, -0.171875 ) + ss( +0.328125, -0.140625 )) +
+			  (ss( -0.296875, -0.109375 ) + ss( +0.203125, -0.078125 ) + ss( -0.046875, -0.046875 ) + ss( +0.453125, -0.015625 )))) +
+			(((ss( -0.453125, +0.015625 ) + ss( +0.046875, +0.046875 ) + ss( -0.203125, +0.078125 ) + ss( +0.296875, +0.109375 )) +
+			  (ss( -0.328125, +0.140625 ) + ss( +0.171875, +0.171875 ) + ss( -0.078125, +0.203125 ) + ss( +0.421875, +0.234375 ))) +
+			 ((ss( -0.390625, +0.265625 ) + ss( +0.109375, +0.296875 ) + ss( -0.140625, +0.328125 ) + ss( +0.359375, +0.359375 )) +
+			  (ss( -0.265625, +0.390625 ) + ss( +0.234375, +0.421875 ) + ss( -0.015625, +0.453125 ) + ss( +0.484375, +0.484375 ))))
 		);
 		gl_FragColor = vec4( sqrt( acc.xyz ), acc.w );
 	}
@@ -242,7 +235,8 @@ export const Mapping = {
 	`,
 	azConformal: String.raw`
 		bool unproject( vec2 p, out vec3 q ) {
-			q = vec3( p, 0.25 * dot( p, p ) - 1.0 );
+			float t = dot( p, p );
+			q = vec3( p, 0.25 * t - 1.0 );
 			return true;
 		}
 	`,
