@@ -6,7 +6,7 @@ function square( x ) {
 
 class Matrix {
 	static mul( n, x, y ) {
-		console.assert( x.length == n * n && y.length == n * n );
+		console.assert( x.length === n * n && y.length === n * n );
 		const z = new Float32Array( n * n );
 		for( let i = 0; i < n; ++i ) {
 			for( let j = 0; j < n; ++j ) {
@@ -102,13 +102,13 @@ export class Renderer {
 		this._scale    = scale;
 	}
 
-	render( fast ) {
+	render( fastMode ) {
 		const gl = this._gl;
 
 		gl.viewport( 0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight );
 		gl.disable( gl.BLEND );
 
-		const prog = fast ? this._progFast : this._progSlow;
+		const prog = fastMode ? this._progFast : this._progSlow;
 		gl.useProgram( prog );
 		const f = this._scale / Math.sqrt( gl.drawingBufferWidth * gl.drawingBufferHeight );
 		const sx = f * gl.drawingBufferWidth;
@@ -351,6 +351,8 @@ export class Handler {
 		this._theta    = Math.PI / -2.0;
 		this._phi      = 0.0;
 		this._scale    = 1.0;
+		this._frame    = 0;
+		this._fastMode = false;
 		this._timer    = null;
 		elem.style.touchAction = "none"; // XXX
 		elem.addEventListener( "pointerdown",   this._onPointerDown.bind( this ) );
@@ -362,19 +364,17 @@ export class Handler {
 		this._onResize( null );
 	}
 
-	_update( fast ) {
-		const rot = Matrix.mul( 3,
-			Matrix.rotation( 3, 1, 2, this._theta ),
-			Matrix.rotation( 3, 0, 1, this._phi   )
-		);
-		this._renderer.setCamera( rot, this._scale );
-		this._renderer.render( fast );
+	update( fastMode ) {
+		this._fastMode = fastMode;
+		if( this._frame === 0 ) {
+			this._frame = requestAnimationFrame( this._onAnimation.bind( this ) );
+		}
 	}
 
 	_updateDelayed() {
 		clearTimeout( this._timer );
-		this._update( true );
-		this._timer = setTimeout( this._onTimer.bind( this ), 250 );
+		this.update( true );
+		this._timer = setTimeout( this.update.bind( this, false ), 250 );
 	}
 
 	_pointerInfo() {
@@ -407,10 +407,6 @@ export class Handler {
 		return { x: xm, y: ym, v: v };
 	}
 
-	_onTimer( ev ) {
-		this._update( false );
-	}
-
 	_onPointerDown( ev ) {
 		this._element.setPointerCapture( ev.pointerId );
 		this._pointers.set( ev.pointerId, ev );
@@ -419,7 +415,7 @@ export class Handler {
 	_onPointerUp( ev ) {
 		this._element.releasePointerCapture( ev.pointerId );
 		this._pointers.delete( ev.pointerId );
-		this._update( false );
+		this.update( false );
 	}
 
 	_onPointerMove( ev ) {
@@ -451,7 +447,7 @@ export class Handler {
 			this._scale *= Math.sqrt( prev.v / curr.v );
 		}
 
-		this._update( true );
+		this.update( true );
 	}
 
 	_onWheel( ev ) {
@@ -471,6 +467,16 @@ export class Handler {
 		this._element.width  = rect.width  * devicePixelRatio;
 		this._element.height = rect.height * devicePixelRatio;
 		this._updateDelayed();
+	}
+
+	_onAnimation( timestamp ) {
+		const rot = Matrix.mul( 3,
+			Matrix.rotation( 3, 1, 2, this._theta ),
+			Matrix.rotation( 3, 0, 1, this._phi   )
+		);
+		this._renderer.setCamera( rot, this._scale );
+		this._renderer.render( this._fastMode );
+		this._frame = 0;
 	}
 }
 
@@ -496,14 +502,14 @@ export class Element extends HTMLElement {
 				const img = new Image();
 				img.onload = () => {
 					this._renderer.setImage( img );
-					this._renderer.render( false );
+					this._handler.update( false );
 				};
 				img.src = newVal;
 				break;
 			}
 			case "mapping": {
 				this._renderer.setMapping( Mapping[newVal] );
-				this._renderer.render( false );
+				this._handler.update( false );
 				break;
 			}
 		}
